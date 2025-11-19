@@ -17,14 +17,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Upload site contents for GitHub Pages
-        uses: actions/upload-pages-artifact@v1
+      - name: Upload static site content
+        uses: actions/upload-pages-artifact@v2
         with:
-          path: './'    # upload everything including index.html
+          path: './'
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v2
