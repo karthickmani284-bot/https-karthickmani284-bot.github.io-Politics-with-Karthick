@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nammo Billing — Demo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Templates (single-page app) -->
+  <script id="tpl-nav" type="text/template">
+    <header class="nav">
+      <div class="brand">Nammo Billing</div>
+      <div class="nav-right">
+        <span class="small">User: <b>{{userName}}</b> ({{role}})</span>
+        <button id="btn-logout" class="btn">Logout</button>
+      </div>
+    </header>
+  </script>
+
+  <script id="tpl-login" type="text/template">
+    <div class="card small">
+      <h2>Login</h2>
+      <form id="form-login">
+        <label>Email <input type="email" id="login-email" required /></label>
+        <label>Password <input type="password" id="login-password" required /></label>
+        <div class="row">
+          <button class="btn primary" type="submit">Login</button>
+          <button id="go-signup" type="button" class="btn">Signup</button>
+        </div>
+        <p class="muted">Default admin: <b>admin@nammo</b> / <b>admin123</b></p>
+      </form>
+    </div>
+  </script>
+
+  <script id="tpl-signup" type="text/template">
+    <div class="card small">
+      <h2>Signup</h2>
+      <form id="form-signup">
+        <label>First name <input id="su-first" required /></label>
+        <label>Last name <input id="su-last" required /></label>
+        <label>Email <input id="su-email" type="email" required /></label>
+        <label>Phone <input id="su-phone" /></label>
+        <label>Location <input id="su-location" /></label>
+        <label>Password <input id="su-pass" type="password" required /></label>
+        <div class="row">
+          <button class="btn primary" type="submit">Create account</button>
+          <button id="back-login" type="button" class="btn">Back</button>
+        </div>
+      </form>
+    </div>
+  </script>
+
+  <script id="tpl-dashboard" type="text/template">
+    <div id="main">
+      <div class="left">
+        <div class="panel">
+          <h3>Quick Actions</h3>
+          <div class="actions">
+            <button id="open-billing" class="btn full">Open Billing</button>
+            <button id="open-products" class="btn full">Products</button>
+            <button id="open-users" class="btn full">Users</button>
+            <button id="open-reports" class="btn full">Reports</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h4>Upload CSV Products</h4>
+          <input id="csv-input" type="file" accept=".csv,text/csv" />
+          <p class="muted">CSV columns: sku,name,price,quantity,barcode</p>
+          <button id="import-csv" class="btn">Import CSV</button>
+          <button id="export-products" class="btn">Export products.json</button>
+        </div>
+
+        <div class="panel">
+          <h4>Site Data</h4>
+          <button id="backup-json" class="btn">Download JSON</button>
+          <button id="restore-json" class="btn">Upload JSON</button>
+          <input id="restore-file" type="file" accept=".json" style="display:none" />
+        </div>
+      </div>
+
+      <div class="right" id="right-panel">
+        <!-- dynamic region: billing/products/users/reports -->
+      </div>
+    </div>
+  </script>
+
+  <script id="tpl-products" type="text/template">
+    <div class="panel">
+      <h3>Products</h3>
+      <button id="add-product-btn" class="btn">Add product</button>
+      <table class="table" id="products-table">
+        <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Barcode</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="product-form" style="display:none" class="card">
+        <h4 id="product-form-title">Add Product</h4>
+        <form id="form-product">
+          <label>SKU <input id="p-sku" required/></label>
+          <label>Name <input id="p-name" required/></label>
+          <label>Price <input id="p-price" type="number" required/></label>
+          <label>Quantity <input id="p-qty" type="number" required/></label>
+          <label>Barcode <input id="p-barcode"/></label>
+          <div class="row">
+            <button class="btn primary" type="submit">Save</button>
+            <button id="cancel-product" type="button" class="btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </script>
+
+  <script id="tpl-users" type="text/template">
+    <div class="panel">
+      <h3>Users</h3>
+      <button id="create-user-btn" class="btn">Create User</button>
+      <table class="table" id="users-table">
+        <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Expires</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <div id="user-form" style="display:none" class="card">
+        <h4 id="user-form-title">Create User</h4>
+        <form id="form-user">
+          <label>Email <input id="u-email" type="email" required/></label>
+          <label>First name <input id="u-first" required/></label>
+          <label>Last name <input id="u-last" required/></label>
+          <label>Password <input id="u-pass" required/></label>
+          <label>Role:
+            <select id="u-role">
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label>Expiry date (optional) <input id="u-expiry" type="date"/></label>
+          <div class="row">
+            <button class="btn primary" type="submit">Save</button>
+            <button id="cancel-user" type="button" class="btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </script>
+
+  <script id="tpl-billing" type="text/template">
+    <div class="panel">
+      <h3>Billing</h3>
+      <div class="row small">
+        <label>Customer name <input id="bill-customer" /></label>
+        <label>GST % <input id="bill-gst" type="number" value="18" /></label>
+        <label>Discount (₹)<input id="bill-discount" type="number" value="0" /></label>
+      </div>
+
+      <div class="row">
+        <input id="search-product" placeholder="Search product by name or SKU or barcode" />
+        <button id="scan-barcode" class="btn">Scan barcode</button>
+      </div>
+
+      <table class="table" id="cart-table">
+        <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Line</th><th>Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="totals">
+        <div>Subtotal: <span id="sub-total">0.00</span></div>
+        <div>GST: <span id="gst-amt">0.00</span></div>
+        <div>Discount: <span id="disc-amt">0.00</span></div>
+        <div class="big">Total: <span id="total-amt">0.00</span></div>
+      </div>
+
+      <div class="row">
+        <button id="finalise-bill" class="btn primary">Complete Sale</button>
+        <button id="print-bill" class="btn">Print</button>
+        <button id="clear-cart" class="btn">Clear</button>
+      </div>
+    </div>
+  </script>
+
+  <script id="tpl-reports" type="text/template">
+    <div class="panel">
+      <h3>Reports</h3>
+      <div id="reports-area"></div>
+      <button id="export-sales" class="btn">Export sales JSON</button>
+    </div>
+  </script>
+
+  <script src="app.js"></script>
+</body>
+</html>
