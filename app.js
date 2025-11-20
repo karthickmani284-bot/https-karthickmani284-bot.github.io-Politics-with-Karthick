@@ -1,4 +1,4 @@
-/* Amma-Billing - Frontend only (JSON/localStorage)
+/* Bill 24x7 - Frontend only (JSON/localStorage)
    - Admin user default: admin@tn / admin1998 (role: admin)
    - Data stored in localStorage keys: nb_users, nb_products, nb_sales
 */
