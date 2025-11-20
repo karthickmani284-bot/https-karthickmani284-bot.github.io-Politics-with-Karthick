@@ -55,3 +55,14 @@ h2,h3,h4{margin:6px 0}
   .left,.right{width:100%;float:none;margin:0}
   .right{margin-top:8px}
 }
+/* Fix billing alignment */
+#right-panel {
+  display: flex;
+  justify-content: center;
+}
+
+#right-panel .panel {
+  width: 90%;
+  max-width: 900px;
+  margin: 0 auto;
+}
