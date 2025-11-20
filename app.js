@@ -1,5 +1,5 @@
 /* Amma-Billing - Frontend only (JSON/localStorage)
-   - Admin user default: admin@tn / 1 (role: admin)
+   - Admin user default: admin@tn / admin1 (role: admin)
    - Data stored in localStorage keys: nb_users, nb_products, nb_sales
 */
 
@@ -21,7 +21,7 @@ function load(key){ const s = localStorage.getItem(key); return s ? JSON.parse(s
 // initialize default data
 function initDefault(){
   if(!load(STORAGE_USERS)){
-    const admin = { email:'admin@tn', pass:'1', first:'Admin', last:'User', role:'admin', expires: null };
+    const admin = { email:'admin@tn', pass:'admin1', first:'Admin', last:'User', role:'admin', expires: null };
     save(STORAGE_USERS, [admin]);
   }
   if(!load(STORAGE_PRODUCTS)){ save(STORAGE_PRODUCTS, [
