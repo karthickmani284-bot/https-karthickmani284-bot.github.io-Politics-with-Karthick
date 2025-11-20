@@ -12,12 +12,19 @@
   <!-- Templates (single-page app) -->
   <script id="tpl-nav" type="text/template">
     <header class="nav">
-      <div class="brand">Bill 24x7</div>
-      <div class="nav-right">
-        <span class="small">User: <b>{{userName}}</b> ({{role}})</span>
-        <button id="btn-logout" class="btn">Logout</button>
-      </div>
-    </header>
+  <div class="brand">
+    <button id="menu-toggle" class="hamburger" aria-label="Toggle menu">☰</button>
+    <img src="/images/logo.png" alt="Bill 24x7 Logo" class="logo">
+    <div class="brand-text">
+      <div class="title">Bill 24x7</div>
+      <div class="subtitle">Smart billing for shops</div>
+    </div>
+  </div>
+  <div class="nav-right">
+    <span class="small">User: <b>{{userName}}</b> ({{role}})</span>
+    <button id="btn-logout" class="btn">Logout</button>
+  </div>
+</header>
   </script>
 
   <script id="tpl-login" type="text/template">
