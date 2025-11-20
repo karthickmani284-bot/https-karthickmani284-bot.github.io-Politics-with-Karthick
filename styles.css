@@ -70,4 +70,55 @@ h2,h3,h4{margin:6px 0}
 .logo {
   display: none !important;
 }
+/* Main sectors (cards) */
+.sectors-panel { padding: 12px 14px; margin-top: 12px; }
+.sectors {
+  display:flex;
+  gap:12px;
+  justify-content:space-between;
+  align-items:stretch;
+  flex-wrap:wrap;
+}
+
+/* Each card same size */
+.sector-card {
+  flex: 1 1 18%; /* 5 cards across where space allows */
+  min-width:140px;
+  max-width:220px;
+  background: #fff;
+  border: 1px solid #eef1f4;
+  border-radius:10px;
+  padding:16px;
+  text-align:left;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  box-shadow: none;
+  transition: all .12s ease;
+}
+
+/* Slight hover */
+.sector-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(10,20,40,0.04);
+}
+
+/* Title + subtitle */
+.sector-title { font-weight:800; font-size:15px; color:#111; }
+.sector-sub { font-size:12px; color:#6e7378; }
+
+/* Active highlight (selected sector) */
+.sector-card.active {
+  border-color: #2b6ef6;
+  background: linear-gradient(180deg, rgba(43,110,246,0.06), #fff);
+  box-shadow: 0 8px 20px rgba(43,110,246,0.06);
+}
+
+/* Make sectors responsive */
+@media (max-width:900px) {
+  .sectors { gap:10px; }
+  .sector-card { flex: 1 1 48%; max-width:48%; }
+}
+
 
