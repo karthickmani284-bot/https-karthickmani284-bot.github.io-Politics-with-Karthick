@@ -3,223 +3,233 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bill 24*7</title>
+  <title>Nammo Billing — Single File</title>
   <style>
-    :root{--accent:#2b7aeb;--muted:#777;--card:#fff;--bg:#f3f6fb}
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,\"Helvetica Neue\",Arial;background:var(--bg);color:#111}
-    .nav{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.05)}
-    .brand{font-weight:700;font-size:18px}
-    .small{font-size:13px;color:var(--muted)}
-    .btn{background:#eee;border:0;padding:8px 10px;border-radius:6px;cursor:pointer}
+    :root{--accent:#2b7aeb;--muted:#666;--bg:#f5f8fc}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:#111}
+    .nav{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #e6eef9}
+    .brand{font-weight:700}
+    .container{display:flex;gap:16px;padding:16px}
+    .sidebar{width:300px}
+    .card{background:#fff;padding:12px;border-radius:8px;box-shadow:0 6px 18px rgba(20,40,80,.06);margin-bottom:12px}
+    .btn{padding:8px 10px;border-radius:6px;border:0;background:#eef2f8;cursor:pointer}
     .btn.primary{background:var(--accent);color:#fff}
-    .btn.full{width:100%;margin-bottom:8px}
-    .card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.04)}
-    .small.card{width:320px;margin:40px auto}
-    #main{display:flex;gap:18px;padding:18px}
-    .left{width:320px}
-    .right{flex:1}
-    .panel{margin-bottom:12px}
-    .actions button{display:block}
-    .row{display:flex;gap:8px;align-items:center}
-    label{display:block;margin:8px 0}
-    input,select{padding:8px;border:1px solid #ddd;border-radius:6px}
-    table.table{width:100%;border-collapse:collapse}
-    table.table th,table.table td{padding:8px;border-bottom:1px solid #eee;text-align:left}
-    .totals{margin-top:12px}
+    .btn.full{width:100%;display:block;margin-bottom:8px}
+    input,select,textarea{width:100%;padding:8px;border:1px solid #e6eef9;border-radius:6px;margin-top:6px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #f1f6fb;text-align:left}
     footer{padding:12px;text-align:center;color:var(--muted)}
-    .muted{color:var(--muted);font-size:13px}
     .hidden{display:none}
-    .highlight{background:#e8f6ff;padding:6px;border-radius:6px}
-    .top-info{display:flex;gap:12px;align-items:center}
+    .small{font-size:13px;color:var(--muted)}
+    .muted{color:var(--muted)}
   </style>
 </head>
 <body>
   <div id="app"></div>
-  <script>
-// Single-file app implementing requested features and persistence
-(()=>{
-  // templates
-  const tpl = {
-    nav: (u)=>`<header class="nav"><div class="brand">Bill 24*7</div><div class="top-info"><div class="small">User: <b>${u.name||'Guest'}</b> (${u.role||'guest'})</div><button id="btn-logout" class="btn">Logout</button></div></header>`,
-    login: ()=>`<div class="card small"><h2>Login</h2><form id="form-login"><label>Email <input type="email" id="login-email" required /></label><label>Password <input type="password" id="login-password" required /></label><div class="row"><button class="btn primary" type="submit">Login</button><button id="go-signup" type="button" class="btn">Signup</button></div><div class="row"><button id="btn-forgot" type="button" class="btn">Forgot/Reset</button></div><p class="muted">Default admin: <b>admin@nammo</b> / <b>admin123</b></p></form></div>`,
-    signup: ()=>`<div class="card small"><h2>Signup</h2><form id="form-signup"><label>First name <input id="su-first" required /></label><label>Last name <input id="su-last" required /></label><label>Email <input id="su-email" type="email" required /></label><label>Phone <input id="su-phone" /></label><label>Location <input id="su-location" /></label><label>Password <input id="su-pass" type="password" required /></label><div class="row"><button class="btn primary" type="submit">Create account</button><button id="back-login" type="button" class="btn">Back</button></div></form></div>`,
-    dashboard: ()=>`<div id="main"><div class="left"><div class="panel card"><h3>Quick Actions</h3><div class="actions"><button id="open-billing" class="btn full">Open Billing</button><button id="open-products" class="btn full">Products</button><button id="open-users" class="btn full">Users</button><button id="open-reports" class="btn full">Reports</button><button id="open-settings" class="btn full">Settings</button></div></div><div class="panel card"><h4>Upload CSV Products</h4><input id="csv-input" type="file" accept=".csv,text/csv" /><p class="muted">CSV columns: sku,name,price,quantity,barcode</p><button id="import-csv" class="btn">Import CSV</button><button id="export-products" class="btn">Export products.json</button></div><div class="panel card"><h4>Site Data</h4><button id="backup-json" class="btn">Download JSON</button><button id="restore-json" class="btn">Upload JSON</button><input id="restore-file" type="file" accept=".json" style="display:none" /></div></div><div class="right" id="right-panel"></div></div>`
-  };
 
-  // storage helpers
-  const STORAGE_KEY = 'nammo_data_v1';
-  function loadData(){
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return defaultData();
-    try{ return JSON.parse(raw);}catch(e){return defaultData();}
-  }
-  function saveData(d){ localStorage.setItem(STORAGE_KEY,JSON.stringify(d)); }
+  <script>
+// Simplified, robust single-file Nammo Billing app
+(function(){
+  const STORAGE_KEY = 'nammo_v2';
   function defaultData(){
     return {
       users:[{email:'admin@nammo',first:'Admin',last:'User',pass:'admin123',role:'admin'}],
-      products:[],
-      customers:[],
-      sales:[],
-      settings:{business:{location:'',city:'',state:'',pincode:''},notifications:{enabled:true,changes:[]}},
-      sessions:{},
+      products:[], customers:[], sales:[], settings:{business:{location:'',city:'',state:'',pincode:''},notifications:[]}, session:null
     }
   }
+  function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultData(); }catch(e){ return defaultData(); } }
+  function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); }
+  let DATA = load();
+  let CURRENT = null;
 
-  let DATA = loadData();
-  let CURRENT_USER = null;
-
-  // render
   const app = document.getElementById('app');
-  function renderLogin(){ app.innerHTML = tpl.login(); bindLogin(); }
-  function renderSignup(){ app.innerHTML = tpl.signup(); bindSignup(); }
-  function renderDashboard(){ app.innerHTML = tpl.nav(CURRENT_USER) + tpl.dashboard(); bindDashboard(); }
 
-  // binders
-  function bindLogin(){
-    document.getElementById('form-login').addEventListener('submit',e=>{
-      e.preventDefault(); const email = document.getElementById('login-email').value.trim(); const pass = document.getElementById('login-password').value;
-      const user = DATA.users.find(u=>u.email.toLowerCase()===email.toLowerCase() && u.pass===pass);
-      if(!user){ alert('Invalid credentials'); return; }
-      CURRENT_USER = {email:user.email,name:user.first+' '+user.last,role:user.role};
-      DATA.sessions.current = {email: user.email, started: new Date().toISOString()}; saveData(DATA);
-      renderDashboard();
-    });
-    document.getElementById('go-signup').addEventListener('click',e=>{ renderSignup(); });
-    document.getElementById('btn-forgot').addEventListener('click',()=>{
-      const em = prompt('Enter your account email to reset password'); if(!em) return; const user = DATA.users.find(u=>u.email.toLowerCase()===em.toLowerCase());
-      if(!user){ alert('No such account'); return; }
-      const np = prompt('Enter new password'); if(!np) return; user.pass = np; saveData(DATA); alert('Password reset');
-    });
+  function renderLogin(){ app.innerHTML = `
+    <div style="max-width:420px;margin:40px auto">
+      <div class="card"><h2>Nammo Billing — Login</h2>
+        <form id="login-form">
+          <label>Email<input type="email" id="li-email" required></label>
+          <label>Password<input type="password" id="li-pass" required></label>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn primary" type="submit">Login</button>
+            <button id="to-signup" type="button" class="btn">Signup</button>
+            <button id="forgot" type="button" class="btn">Reset</button>
+          </div>
+          <p class="small">Default admin: admin@nammo / admin123</p>
+        </form>
+      </div>
+    </div>
+  `;
+
+    document.getElementById('to-signup').onclick = ()=>renderSignup();
+    document.getElementById('forgot').onclick = ()=>{
+      const em = prompt('Enter account email to reset password'); if(!em) return; const u = DATA.users.find(x=>x.email.toLowerCase()===em.toLowerCase()); if(!u){ alert('No account'); return; } const np = prompt('New password'); if(!np) return; u.pass = np; save(); alert('Password updated'); };
+    document.getElementById('login-form').onsubmit = function(e){ e.preventDefault(); const em = document.getElementById('li-email').value.trim(); const pw = document.getElementById('li-pass').value; const u = DATA.users.find(x=>x.email.toLowerCase()===em.toLowerCase() && x.pass===pw); if(!u){ alert('Invalid credentials'); return; } CURRENT = u; DATA.session = {email:u.email, since: new Date().toISOString()}; save(); renderApp(); };
   }
 
-  function bindSignup(){
-    document.getElementById('form-signup').addEventListener('submit',e=>{
-      e.preventDefault(); const email = document.getElementById('su-email').value.trim(); if(DATA.users.some(u=>u.email.toLowerCase()===email.toLowerCase())){alert('Email exists');return}
-      const newu = {email,first:document.getElementById('su-first').value, last:document.getElementById('su-last').value, pass:document.getElementById('su-pass').value, role:'staff'};
-      DATA.users.push(newu); saveData(DATA); alert('Account created'); renderLogin();
-    });
-    document.getElementById('back-login').addEventListener('click',renderLogin);
+  function renderSignup(){ app.innerHTML = `
+    <div style="max-width:420px;margin:40px auto"><div class="card"><h2>Signup</h2>
+      <form id="su-form">
+        <label>First<input id="su-first" required></label>
+        <label>Last<input id="su-last"></label>
+        <label>Email<input id="su-email" type="email" required></label>
+        <label>Password<input id="su-pass" type="password" required></label>
+        <div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary" type="submit">Create</button><button id="su-back" class="btn" type="button">Back</button></div>
+      </form></div></div>
+  `;
+    document.getElementById('su-back').onclick = renderLogin;
+    document.getElementById('su-form').onsubmit = function(e){ e.preventDefault(); const email = document.getElementById('su-email').value.trim(); if(DATA.users.some(x=>x.email.toLowerCase()===email.toLowerCase())){ alert('Email exists'); return; } DATA.users.push({email,first:document.getElementById('su-first').value,last:document.getElementById('su-last').value,pass:document.getElementById('su-pass').value,role:'staff'}); save(); alert('Account created'); renderLogin(); };
   }
 
-  function bindDashboard(){
-    // nav buttons
-    document.getElementById('btn-logout').addEventListener('click',()=>{ CURRENT_USER=null; delete DATA.sessions.current; saveData(DATA); renderLogin(); });
-    document.getElementById('open-billing').addEventListener('click',openBilling);
-    document.getElementById('open-products').addEventListener('click',openProducts);
-    document.getElementById('open-users').addEventListener('click',openUsers);
-    document.getElementById('open-reports').addEventListener('click',openReports);
-    document.getElementById('open-settings').addEventListener('click',openSettings);
+  function renderApp(){ app.innerHTML = `
+    <div>
+      <div class="nav"><div class="brand">Nammo Billing</div><div><span class="small">${CURRENT.first} ${CURRENT.last} (${CURRENT.role})</span> <button id="logout" class="btn">Logout</button></div></div>
+      <div class="container">
+        <div class="sidebar">
+          <div class="card"><button id="nav-billing" class="btn full">Billing</button><button id="nav-products" class="btn full">Products</button><button id="nav-users" class="btn full">Users</button><button id="nav-reports" class="btn full">Reports</button><button id="nav-settings" class="btn full">Settings</button></div>
+          <div class="card"><h4>Import / Export</h4><input id="file-csv" type="file" accept=".csv"><div style="display:flex;gap:8px;margin-top:8px"><button id="imp-csv" class="btn">Import CSV</button><button id="exp-products" class="btn">Export Products</button></div></div>
+        </div>
+        <div style="flex:1" id="main-area"></div>
+      </div>
+      <footer>Software Owned by - Karthick Subramanian</footer>
+    </div>
+  `;
 
-    document.getElementById('import-csv').addEventListener('click',()=>{
-      const f = document.getElementById('csv-input').files[0]; if(!f){alert('Pick file');return}
-      const r = new FileReader(); r.onload = ()=>{
-        const lines = r.result.split(/\r?\n/).filter(Boolean); for(const ln of lines){ const cols = ln.split(','); if(cols.length<3) continue; DATA.products.push({sku:cols[0].trim(),name:cols[1].trim(),price:parseFloat(cols[2])||0,quantity:parseInt(cols[3])||0,barcode:cols[4]||''});}
-        saveData(DATA); alert('Imported');
-      }; r.readAsText(f);
-    });
-    document.getElementById('export-products').addEventListener('click',()=>downloadJSON(DATA.products,'products.json'));
-    document.getElementById('backup-json').addEventListener('click',()=>downloadJSON(DATA,'nammo-backup.json'));
-    document.getElementById('restore-json').addEventListener('click',()=>document.getElementById('restore-file').click());
-    document.getElementById('restore-file').addEventListener('change',ev=>{
-      const f = ev.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ DATA = JSON.parse(r.result); saveData(DATA); alert('Restored'); }catch(e){alert('Invalid JSON');} renderDashboard(); }; r.readAsText(f);
-    });
+    document.getElementById('logout').onclick = ()=>{ CURRENT=null; DATA.session=null; save(); renderLogin(); };
+    document.getElementById('nav-billing').onclick = renderBilling;
+    document.getElementById('nav-products').onclick = renderProducts;
+    document.getElementById('nav-users').onclick = renderUsers;
+    document.getElementById('nav-reports').onclick = renderReports;
+    document.getElementById('nav-settings').onclick = renderSettings;
 
-    // default open billing
-    openBilling();
+    document.getElementById('imp-csv').onclick = ()=>{
+      const f = document.getElementById('file-csv').files[0]; if(!f){ alert('Pick CSV'); return; }
+      const r = new FileReader(); r.onload = ()=>{ const lines = r.result.split(/
+?
+/).filter(Boolean); lines.forEach(ln=>{ const cols = ln.split(','); if(cols.length>=2){ DATA.products.push({sku:cols[0].trim(),name:cols[1].trim(),price:parseFloat(cols[2])||0,quantity:parseInt(cols[3])||0,barcode:cols[4]||''}); } }); save(); alert('Imported'); renderProducts(); }; r.readAsText(f);
+    };
+    document.getElementById('exp-products').onclick = ()=>{ const blob = new Blob([JSON.stringify(DATA.products,null,2)],{type:'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='products.json'; a.click(); URL.revokeObjectURL(url); };
+
+    // open billing by default
+    renderBilling();
   }
 
-  // helper to download
-  function downloadJSON(obj,filename){ const blob = new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
-
-  // PRODUCTS view
-  function openProducts(){ const out = document.getElementById('right-panel'); out.innerHTML = `<div class="panel card"><h3>Products</h3><button id="add-product-btn" class="btn">Add product</button><table class="table" id="products-table"><thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Barcode</th><th>Actions</th></tr></thead><tbody></tbody></table><div id="product-form" style="display:none" class="card"><h4 id="product-form-title">Add Product</h4><form id="form-product"><label>SKU <input id="p-sku" required/></label><label>Name <input id="p-name" required/></label><label>Price <input id="p-price" type="number" required/></label><label>Quantity <input id="p-qty" type="number" required/></label><label>Barcode <input id="p-barcode"/></label><div class="row"><button class="btn primary" type="submit">Save</button><button id="cancel-product" type="button" class="btn">Cancel</button></div></form></div></div>`;
-    const tbody = document.querySelector('#products-table tbody'); function refresh(){ tbody.innerHTML=''; DATA.products.forEach((p,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${p.sku}</td><td>${p.name}</td><td>${p.price.toFixed(2)}</td><td>${p.quantity}</td><td>${p.barcode||''}</td><td><button data-i="${i}" class="btn edit">Edit</button> <button data-i="${i}" class="btn del">Del</button></td>`; tbody.appendChild(tr); }); }
-    refresh(); document.getElementById('add-product-btn').addEventListener('click',()=>{document.getElementById('product-form').style.display='block';document.getElementById('product-form-title').innerText='Add Product';document.getElementById('p-sku').value='';document.getElementById('p-name').value='';document.getElementById('p-price').value='0';document.getElementById('p-qty').value='0';document.getElementById('p-barcode').value='';});
-    document.getElementById('cancel-product').addEventListener('click',()=>document.getElementById('product-form').style.display='none');
-    document.getElementById('form-product').addEventListener('submit',e=>{ e.preventDefault(); const sku=document.getElementById('p-sku').value.trim(); const name=document.getElementById('p-name').value.trim(); const price=parseFloat(document.getElementById('p-price').value)||0; const qty=parseInt(document.getElementById('p-qty').value)||0; const barcode=document.getElementById('p-barcode').value.trim(); DATA.products.push({sku,name,price,quantity:qty,barcode}); saveData(DATA); refresh(); document.getElementById('product-form').style.display='none';});
-    tbody.addEventListener('click',ev=>{ if(ev.target.classList.contains('del')){ const i=parseInt(ev.target.dataset.i); if(confirm('Delete product?')){ DATA.products.splice(i,1); saveData(DATA); refresh(); }} if(ev.target.classList.contains('edit')){ const i=parseInt(ev.target.dataset.i); const p=DATA.products[i]; document.getElementById('product-form').style.display='block'; document.getElementById('product-form-title').innerText='Edit Product'; document.getElementById('p-sku').value=p.sku; document.getElementById('p-name').value=p.name; document.getElementById('p-price').value=p.price; document.getElementById('p-qty').value=p.quantity; document.getElementById('p-barcode').value=p.barcode; // on save replace
-      document.getElementById('form-product').onsubmit = function(ev2){ ev2.preventDefault(); p.sku=document.getElementById('p-sku').value; p.name=document.getElementById('p-name').value; p.price=parseFloat(document.getElementById('p-price').value)||0; p.quantity=parseInt(document.getElementById('p-qty').value)||0; p.barcode=document.getElementById('p-barcode').value; saveData(DATA); refresh(); document.getElementById('product-form').style.display='none'; document.getElementById('form-product').onsubmit = null; }});
-  }
-
-  // USERS view
-  function openUsers(){ const out = document.getElementById('right-panel'); out.innerHTML = `<div class="panel card"><h3>Users</h3><button id="create-user-btn" class="btn">Create User</button><table class="table" id="users-table"><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Expires</th><th>Actions</th></tr></thead><tbody></tbody></table><div id="user-form" style="display:none" class="card"><h4 id="user-form-title">Create User</h4><form id="form-user"><label>Email <input id="u-email" type="email" required/></label><label>First name <input id="u-first" required/></label><label>Last name <input id="u-last" required/></label><label>Password <input id="u-pass" required/></label><label>Role:<select id="u-role"><option value="staff">Staff</option><option value="admin">Admin</option></select></label><label>Expiry date (optional) <input id="u-expiry" type="date"/></label><div class="row"><button class="btn primary" type="submit">Save</button><button id="cancel-user" type="button" class="btn">Cancel</button></div></form></div></div>`;
-    const tbody = document.querySelector('#users-table tbody'); function refresh(){ tbody.innerHTML=''; DATA.users.forEach((u,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${u.email}</td><td>${u.first} ${u.last}</td><td>${u.role}</td><td>${u.expiry||''}</td><td><button data-i="${i}" class="btn edit">Edit</button> <button data-i="${i}" class="btn del">Del</button></td>`; tbody.appendChild(tr); }); }
-    refresh(); document.getElementById('create-user-btn').addEventListener('click',()=>{document.getElementById('user-form').style.display='block';});
-    document.getElementById('cancel-user').addEventListener('click',()=>document.getElementById('user-form').style.display='none');
-    document.getElementById('form-user').addEventListener('submit',e=>{ e.preventDefault(); const email=document.getElementById('u-email').value; if(DATA.users.some(x=>x.email.toLowerCase()===email.toLowerCase())){alert('Email exists');return}
-      DATA.users.push({email,first:document.getElementById('u-first').value,last:document.getElementById('u-last').value,pass:document.getElementById('u-pass').value,role:document.getElementById('u-role').value,expiry:document.getElementById('u-expiry').value}); saveData(DATA); refresh(); document.getElementById('user-form').style.display='none'; });
-    tbody.addEventListener('click',ev=>{ if(ev.target.classList.contains('del')){ const i=parseInt(ev.target.dataset.i); if(confirm('Delete user?')){ DATA.users.splice(i,1); saveData(DATA); refresh(); }} if(ev.target.classList.contains('edit')){ const i=parseInt(ev.target.dataset.i); const u=DATA.users[i]; document.getElementById('user-form').style.display='block'; document.getElementById('u-email').value=u.email; document.getElementById('u-first').value=u.first; document.getElementById('u-last').value=u.last; document.getElementById('u-pass').value=u.pass; document.getElementById('u-role').value=u.role; document.getElementById('u-expiry').value=u.expiry||''; document.getElementById('form-user').onsubmit=function(ev2){ ev2.preventDefault(); u.email=document.getElementById('u-email').value; u.first=document.getElementById('u-first').value; u.last=document.getElementById('u-last').value; u.pass=document.getElementById('u-pass').value; u.role=document.getElementById('u-role').value; u.expiry=document.getElementById('u-expiry').value; saveData(DATA); refresh(); document.getElementById('user-form').style.display='none'; document.getElementById('form-user').onsubmit=null; } }});
-  }
-
-  // BILLING view
-  function openBilling(){ const out = document.getElementById('right-panel'); out.innerHTML = `<div class="panel card"><h3>Billing</h3><div class="row small"><label>Customer name <input id="bill-customer" /></label><label>GST % <input id="bill-gst" type="number" value="18" /></label><label>Discount (₹)<input id="bill-discount" type="number" value="0" /></label><button id="apply-discount" class="btn">Apply discount</button></div><div class="row"><input id="search-product" placeholder="Search product by name or SKU or barcode" /><button id="scan-barcode" class="btn">Scan barcode</button></div><table class="table" id="cart-table"><thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Line</th><th>Action</th></tr></thead><tbody></tbody></table><div class="totals"><div>Subtotal: <span id="sub-total">0.00</span></div><div>GST: <span id="gst-amt">0.00</span></div><div>Discount: <span id="disc-amt">0.00</span></div><div class="big">Total: <span id="total-amt">0.00</span></div></div><div class="row"><button id="finalise-bill" class="btn primary">Complete Sale</button><button id="print-bill" class="btn">Print</button><button id="clear-cart" class="btn">Clear</button></div></div>`;
+  // --- Billing ---
+  function renderBilling(){ const main = document.getElementById('main-area'); main.innerHTML = `
+    <div class="card"><h3>Billing</h3>
+      <div style="display:flex;gap:8px"><input id="bill-customer" placeholder="Customer name"><input id="bill-gst" type="number" value="18" style="width:120px"><input id="bill-discount" type="number" value="0" style="width:140px"><button id="apply-discount" class="btn">Apply</button></div>
+      <div style="margin-top:8px"><input id="search" placeholder="Search product by name/sku/barcode"></div>
+      <table style="margin-top:8px"><thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Line</th><th>Action</th></tr></thead><tbody id="cart-body"></tbody></table>
+      <div style="margin-top:8px"><div>Subtotal: <span id="sub">0</span></div><div>GST: <span id="gstamt">0</span></div><div>Discount: <span id="discamt">0</span></div><div>Total: <span id="totalamt">0</span></div></div>
+      <div style="margin-top:8px"><button id="complete-sale" class="btn primary">Complete Sale</button> <button id="clear-cart" class="btn">Clear</button></div>
+    </div>
+  `;
     const cart = [];
-    const tbody = document.querySelector('#cart-table tbody'); function refreshCart(){ tbody.innerHTML=''; let subtotal=0; cart.forEach((c,i)=>{ const line=c.quantity*c.price; subtotal+=line; const tr=document.createElement('tr'); tr.innerHTML=`<td>${c.sku}</td><td>${c.name}</td><td>${c.price.toFixed(2)}</td><td><input data-i="${i}" class="qty-in" type="number" value="${c.quantity}" min="1"/></td><td>${line.toFixed(2)}</td><td><button data-i="${i}" class="btn remove">Remove</button></td>`; tbody.appendChild(tr); }); const gstPct=parseFloat(document.getElementById('bill-gst').value)||0; const discount=parseFloat(document.getElementById('bill-discount').value)||0; const gstAmt = subtotal * gstPct/100; const total = subtotal + gstAmt - discount; document.getElementById('sub-total').innerText = subtotal.toFixed(2); document.getElementById('gst-amt').innerText = gstAmt.toFixed(2); document.getElementById('disc-amt').innerText = discount.toFixed(2); document.getElementById('total-amt').innerText = total.toFixed(2); }
-    document.getElementById('search-product').addEventListener('input',ev=>{
-      const q = ev.target.value.trim().toLowerCase(); const found = DATA.products.find(p=>p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.barcode||'').toLowerCase().includes(q)); if(found){ const existing = cart.find(x=>x.sku===found.sku); if(existing){ existing.quantity+=1; } else { cart.push({sku:found.sku,name:found.name,price:found.price,quantity:1}); } refreshCart(); ev.target.value=''; }
-    });
-    document.getElementById('apply-discount').addEventListener('click',()=>{ refreshCart(); });
-    tbody.addEventListener('click',ev=>{ if(ev.target.classList.contains('remove')){ const i=parseInt(ev.target.dataset.i); cart.splice(i,1); refreshCart(); }});
-    tbody.addEventListener('change',ev=>{ if(ev.target.classList.contains('qty-in')){ const i=parseInt(ev.target.dataset.i); cart[i].quantity = parseInt(ev.target.value)||1; refreshCart(); }});
-    document.getElementById('clear-cart').addEventListener('click',()=>{ if(confirm('Clear cart?')){ cart.length=0; refreshCart(); }});
-    document.getElementById('finalise-bill').addEventListener('click',()=>{
+    const search = document.getElementById('search'); function updateTotals(){ const sub = cart.reduce((s,i)=>s + i.price * i.qty,0); const gst = sub * (parseFloat(document.getElementById('bill-gst').value)||0)/100; const disc = parseFloat(document.getElementById('bill-discount').value)||0; document.getElementById('sub').innerText = sub.toFixed(2); document.getElementById('gstamt').innerText = gst.toFixed(2); document.getElementById('discamt').innerText = disc.toFixed(2); document.getElementById('totalamt').innerText = (sub+gst-disc).toFixed(2); renderCart(); }
+    function renderCart(){ const tbody = document.getElementById('cart-body'); tbody.innerHTML=''; cart.forEach((it,idx)=>{ const tr = document.createElement('tr'); tr.innerHTML = `<td>${it.sku}</td><td>${it.name}</td><td>${it.price.toFixed(2)}</td><td><input data-idx="${idx}" class="cart-qty" type="number" value="${it.qty}" min="1" style="width:70px"></td><td>${(it.price*it.qty).toFixed(2)}</td><td><button data-idx="${idx}" class="btn remove">Remove</button></td>`; tbody.appendChild(tr); });
+      tbody.querySelectorAll('.remove').forEach(b=>b.onclick = e=>{ const i = +e.target.dataset.idx; cart.splice(i,1); updateTotals(); });
+      tbody.querySelectorAll('.cart-qty').forEach(inp=>inp.onchange = e=>{ const i=+e.target.dataset.idx; cart[i].qty = Math.max(1,parseInt(e.target.value)||1); updateTotals(); }); }
+
+    search.oninput = function(){ const q = this.value.trim().toLowerCase(); if(!q) return; const p = DATA.products.find(x=> (x.name||'').toLowerCase().includes(q) || (x.sku||'').toLowerCase()===q || (x.barcode||'').toLowerCase()===q ); if(p){ const ex = cart.find(x=>x.sku===p.sku); if(ex) ex.qty += 1; else cart.push({sku:p.sku,name:p.name,price:parseFloat(p.price)||0,qty:1}); this.value=''; updateTotals(); } };
+    document.getElementById('apply-discount').onclick = updateTotals;
+    document.getElementById('clear-cart').onclick = ()=>{ if(confirm('Clear cart?')){ cart.length=0; updateTotals(); } };
+    document.getElementById('complete-sale').onclick = ()=>{
       if(cart.length===0){ alert('Cart empty'); return; }
-      const customer = document.getElementById('bill-customer').value.trim(); const gstPct=parseFloat(document.getElementById('bill-gst').value)||0; const discount=parseFloat(document.getElementById('bill-discount').value)||0;
-      const subtotal = cart.reduce((s,c)=>s+c.price*c.quantity,0); const gstAmt = subtotal*gstPct/100; const total = subtotal + gstAmt - discount; const sale = {id:'S'+Date.now(),user:CURRENT_USER?CURRENT_USER.email:'guest',customer,items:JSON.parse(JSON.stringify(cart)),subtotal,gstPct,gstAmt,discount,total,date:new Date().toISOString()};
-      DATA.sales.push(sale); // reduce stock
-      sale.items.forEach(it=>{ const prod = DATA.products.find(p=>p.sku===it.sku); if(prod) prod.quantity = Math.max(0,(prod.quantity||0)-it.quantity); });
-      // notification: note change
-      DATA.settings.notifications.changes.push({type:'sale',msg:`Sale ${sale.id} by ${sale.user}`,date:new Date().toISOString()}); saveData(DATA);
-      alert('Sale recorded: '+sale.id); cart.length=0; refreshCart();
-    });
-    document.getElementById('print-bill').addEventListener('click',()=> window.print());
-    refreshCart();
+      const sale = {id:'S'+Date.now(), user:CURRENT.email, customer:document.getElementById('bill-customer').value || '', items:cart.map(i=>({sku:i.sku,name:i.name,price:i.price,qty:i.qty})), date:new Date().toISOString(), subtotal:cart.reduce((s,i)=>s+i.price*i.qty,0), gstPct:parseFloat(document.getElementById('bill-gst').value)||0, discount:parseFloat(document.getElementById('bill-discount').value)||0 };
+      sale.gst = sale.subtotal * sale.gstPct/100; sale.total = sale.subtotal + sale.gst - sale.discount; DATA.sales.push(sale);
+      // reduce inventory
+      sale.items.forEach(it=>{ const prod = DATA.products.find(p=>p.sku===it.sku); if(prod) prod.quantity = Math.max(0,(prod.quantity||0) - it.qty); });
+      DATA.settings.notifications.push({type:'sale',msg:`Sale ${sale.id} by ${CURRENT.email}`,date:new Date().toISOString()}); save(); alert('Sale recorded: '+sale.id); cart.length=0; updateTotals(); renderProducts(); };
   }
 
-  // REPORTS view
-  function openReports(){ const out = document.getElementById('right-panel'); out.innerHTML = `<div class="panel card"><h3>Reports</h3><div class="row"><button id="r-today" class="btn">Today</button><button id="r-yesterday" class="btn">Yesterday</button><input id="r-from" type="date"/><input id="r-to" type="date"/><button id="r-range" class="btn">Custom Range</button></div><div id="reports-area" style="margin-top:12px"></div><button id="export-sales" class="btn">Export sales JSON</button></div>`;
-    function qDates(which){ const now = new Date(); if(which==='today'){ const s=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const e=new Date(s); e.setDate(e.getDate()+1); return [s.toISOString(),e.toISOString()]; }
-      if(which==='yesterday'){ const s=new Date(); s.setDate(s.getDate()-1); s.setHours(0,0,0,0); const e=new Date(s); e.setDate(e.getDate()+1); return [s.toISOString(),e.toISOString()]; }
-      return null;
-    }
-    function showSalesBetween(fromISO,toISO){ const list = DATA.sales.filter(s=>s.date>=fromISO && s.date<toISO); const area = document.getElementById('reports-area'); area.innerHTML = `<div><b>Sales: ${list.length}</b></div>`+list.map(s=>`<div class="card" style="margin-top:8px;padding:8px"><div>Id: ${s.id} — ${new Date(s.date).toLocaleString()}</div><div>User: ${s.user} Customer: ${s.customer||'-'}</div><div>Total: ₹${s.total.toFixed(2)}</div></div>`).join(''); }
-    document.getElementById('r-today').addEventListener('click',()=>{ const [f,t]=qDates('today'); showSalesBetween(f,t); });
-    document.getElementById('r-yesterday').addEventListener('click',()=>{ const [f,t]=qDates('yesterday'); showSalesBetween(f,t); });
-    document.getElementById('r-range').addEventListener('click',()=>{ const f=document.getElementById('r-from').value; const t=document.getElementById('r-to').value; if(!f||!t){alert('Pick both dates');return} const fromISO = new Date(f+'T00:00:00').toISOString(); const toISO = new Date(t+'T23:59:59').toISOString(); showSalesBetween(fromISO,toISO); });
-    document.getElementById('export-sales').addEventListener('click',()=>downloadJSON(DATA.sales,'sales.json'));
-    // show totals default
-    document.getElementById('r-today').click();
+  // --- Products ---
+  function renderProducts(){ const main = document.getElementById('main-area'); main.innerHTML = `
+    <div class="card"><h3>Products</h3><button id="add-prod" class="btn">Add product</button><table><thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Barcode</th><th>Action</th></tr></thead><tbody id="prod-body"></tbody></table></div>
+    <div id="prod-form" class="card hidden"><h4 id="pf-title">Add product</h4>
+      <label>SKU<input id="pf-sku"></label>
+      <label>Name<input id="pf-name"></label>
+      <label>Price<input id="pf-price" type="number"></label>
+      <label>Quantity<input id="pf-qty" type="number"></label>
+      <label>Barcode<input id="pf-bar"></label>
+      <div style="display:flex;gap:8px;margin-top:8px"><button id="pf-save" class="btn primary">Save</button><button id="pf-cancel" class="btn">Cancel</button></div>
+    </div>
+  `;
+    function refresh(){ const tbody = document.getElementById('prod-body'); tbody.innerHTML=''; DATA.products.forEach((p,i)=>{ const tr = document.createElement('tr'); tr.innerHTML = `<td>${p.sku}</td><td>${p.name}</td><td>${(p.price||0).toFixed(2)}</td><td>${p.quantity||0}</td><td>${p.barcode||''}</td><td><button data-i="${i}" class="btn edit">Edit</button> <button data-i="${i}" class="btn del">Del</button></td>`; tbody.appendChild(tr); }); }
+    refresh(); document.getElementById('add-prod').onclick = ()=>{ document.getElementById('prod-form').classList.remove('hidden'); document.getElementById('pf-title').innerText='Add product'; document.getElementById('pf-sku').value=''; document.getElementById('pf-name').value=''; document.getElementById('pf-price').value='0'; document.getElementById('pf-qty').value='0'; document.getElementById('pf-bar').value=''; };
+    document.getElementById('pf-cancel').onclick = ()=>document.getElementById('prod-form').classList.add('hidden');
+    document.getElementById('pf-save').onclick = ()=>{ const sku = document.getElementById('pf-sku').value.trim(); const name = document.getElementById('pf-name').value.trim(); if(!sku||!name){ alert('SKU and name required'); return; } const price = parseFloat(document.getElementById('pf-price').value)||0; const qty = parseInt(document.getElementById('pf-qty').value)||0; const bar = document.getElementById('pf-bar').value.trim(); DATA.products.push({sku,name,price,quantity:qty,barcode:bar}); save(); document.getElementById('prod-form').classList.add('hidden'); refresh(); };
+    document.getElementById('prod-body').onclick = function(e){ if(e.target.classList.contains('del')){ const i = +e.target.dataset.i; if(confirm('Delete?')){ DATA.products.splice(i,1); save(); refresh(); } } if(e.target.classList.contains('edit')){ const i = +e.target.dataset.i; const p = DATA.products[i]; document.getElementById('prod-form').classList.remove('hidden'); document.getElementById('pf-title').innerText='Edit product'; document.getElementById('pf-sku').value=p.sku; document.getElementById('pf-name').value=p.name; document.getElementById('pf-price').value=p.price; document.getElementById('pf-qty').value=p.quantity; document.getElementById('pf-bar').value=p.barcode; document.getElementById('pf-save').onclick = ()=>{ p.sku=document.getElementById('pf-sku').value.trim(); p.name=document.getElementById('pf-name').value.trim(); p.price=parseFloat(document.getElementById('pf-price').value)||0; p.quantity=parseInt(document.getElementById('pf-qty').value)||0; p.barcode=document.getElementById('pf-bar').value.trim(); save(); document.getElementById('prod-form').classList.add('hidden'); refresh(); document.getElementById('pf-save').onclick = null; } } };
   }
 
-  // SETTINGS view
-  function openSettings(){ const out = document.getElementById('right-panel'); out.innerHTML = `<div class="panel card"><h3>Settings</h3><h4>Login Details</h4><div><label>Admin email <input id="s-admin-email" type="email"/></label><label>Admin password <input id="s-admin-pass" type="password"/></label><div class="row"><button id="s-save-login" class="btn primary">Save Login</button><button id="s-reset-login" class="btn">Reset to default</button></div></div><h4>Customer fields (Template)</h4><div><p class="muted">Customer record fields used when creating customer</p><button id="create-customer" class="btn">Create Customer</button><div id="customers-area" style="margin-top:8px"></div></div><h4>Business Location</h4><div><label>Location <input id="s-loc"/></label><label>City <input id="s-city"/></label><label>State <input id="s-state"/></label><label>Pincode <input id="s-pincode"/></label><button id="s-save-location" class="btn">Save Location</button></div><h4>Notifications</h4><div><label><input id="notif-enabled" type="checkbox"/> Enable notifications</label><button id="notif-view" class="btn">View recent changes</button></div></div>`;
-    // populate
-    document.getElementById('s-admin-email').value = DATA.users.find(u=>u.role==='admin')?.email||'';
-    document.getElementById('s-admin-pass').value = DATA.users.find(u=>u.role==='admin')?.pass||'';
-    document.getElementById('s-save-login').addEventListener('click',()=>{
-      const email = document.getElementById('s-admin-email').value.trim(); const pass = document.getElementById('s-admin-pass').value; const admin = DATA.users.find(u=>u.role==='admin'); if(admin){ admin.email=email; admin.pass=pass; } else { DATA.users.push({email,first:'Admin',last:'',pass,role:'admin'}); }
-      saveData(DATA); alert('Saved');
-    });
-    document.getElementById('s-reset-login').addEventListener('click',()=>{ if(confirm('Reset admin to default admin@nammo / admin123?')){ const admin = DATA.users.find(u=>u.role==='admin'); if(admin){ admin.email='admin@nammo'; admin.pass='admin123'; } else { DATA.users.push({email:'admin@nammo',first:'Admin',last:'User',pass:'admin123',role:'admin'}); } saveData(DATA); alert('Reset'); document.getElementById('s-admin-email').value='admin@nammo'; document.getElementById('s-admin-pass').value='admin123'; }});
+  // --- Users ---
+  function renderUsers(){ const main = document.getElementById('main-area'); main.innerHTML = `
+    <div class="card"><h3>Users</h3><button id="add-user" class="btn">Create user</button><table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Action</th></tr></thead><tbody id="user-body"></tbody></table></div>
+    <div id="user-form" class="card hidden"><label>Email<input id="u-email"></label><label>First<input id="u-first"></label><label>Last<input id="u-last"></label><label>Password<input id="u-pass"></label><label>Role<select id="u-role"><option value="staff">Staff</option><option value="admin">Admin</option></select></label>
+      <div style="display:flex;gap:8px;margin-top:8px"><button id="u-save" class="btn primary">Save</button><button id="u-cancel" class="btn">Cancel</button></div></div>
+  `;
+    function refresh(){ const tb = document.getElementById('user-body'); tb.innerHTML=''; DATA.users.forEach((u,i)=>{ const tr = document.createElement('tr'); tr.innerHTML = `<td>${u.email}</td><td>${u.first||''} ${u.last||''}</td><td>${u.role||''}</td><td><button data-i="${i}" class="btn edit">Edit</button> <button data-i="${i}" class="btn del">Del</button></td>`; tb.appendChild(tr); }); }
+    refresh(); document.getElementById('add-user').onclick = ()=>{ document.getElementById('user-form').classList.remove('hidden'); };
+    document.getElementById('u-cancel').onclick = ()=>document.getElementById('user-form').classList.add('hidden');
+    document.getElementById('u-save').onclick = ()=>{ const email = document.getElementById('u-email').value.trim(); if(!email){ alert('Email required'); return; } if(DATA.users.some(x=>x.email.toLowerCase()===email.toLowerCase())){ alert('Email exists'); return; } DATA.users.push({email,first:document.getElementById('u-first').value,last:document.getElementById('u-last').value,pass:document.getElementById('u-pass').value,role:document.getElementById('u-role').value}); save(); document.getElementById('user-form').classList.add('hidden'); refresh(); };
+    document.getElementById('user-body').onclick = function(e){ if(e.target.classList.contains('del')){ const i = +e.target.dataset.i; if(confirm('Delete user?')){ DATA.users.splice(i,1); save(); renderUsers(); } } if(e.target.classList.contains('edit')){ const i = +e.target.dataset.i; const u = DATA.users[i]; document.getElementById('user-form').classList.remove('hidden'); document.getElementById('u-email').value=u.email; document.getElementById('u-first').value=u.first; document.getElementById('u-last').value=u.last; document.getElementById('u-pass').value=u.pass; document.getElementById('u-role').value=u.role; document.getElementById('u-save').onclick = ()=>{ u.email=document.getElementById('u-email').value.trim(); u.first=document.getElementById('u-first').value; u.last=document.getElementById('u-last').value; u.pass=document.getElementById('u-pass').value; u.role=document.getElementById('u-role').value; save(); document.getElementById('user-form').classList.add('hidden'); renderUsers(); document.getElementById('u-save').onclick = null; } } };
+  }
 
-    function renderCustomers(){ const div=document.getElementById('customers-area'); div.innerHTML=''; DATA.customers.forEach((c,i)=>{ const el = document.createElement('div'); el.className='card'; el.style.marginTop='6px'; el.innerHTML = `<div><b>${c.name}</b> ${c.active?'<span class="highlight">Active</span>':''}</div><div>${c.phone||''} ${c.email||''} ${c.location||''}</div><div><button data-i="${i}" class="btn edit">Edit</button> <button data-i="${i}" class="btn del">Del</button></div>`; div.appendChild(el); }); }
-    renderCustomers(); document.getElementById('create-customer').addEventListener('click',()=>{
-      const name = prompt('Customer name'); if(!name) return; const phone = prompt('Phone'); const email = prompt('Email'); const loc = prompt('Location'); const active = confirm('Mark active?'); DATA.customers.push({name,phone,email,location:loc,active}); saveData(DATA); renderCustomers();
-    });
-    document.getElementById('customers-area').addEventListener('click',ev=>{ if(ev.target.classList.contains('del')){ const i=parseInt(ev.target.dataset.i); if(confirm('Delete customer?')){ DATA.customers.splice(i,1); saveData(DATA); renderCustomers(); }} if(ev.target.classList.contains('edit')){ const i=parseInt(ev.target.dataset.i); const c=DATA.customers[i]; const name = prompt('Name',c.name); if(!name) return; c.name=name; c.phone=prompt('Phone',c.phone); c.email=prompt('Email',c.email); c.location=prompt('Location',c.location); c.active=confirm('Active?'); saveData(DATA); renderCustomers(); }});
+  // --- Reports ---
+  function renderReports(){ const main = document.getElementById('main-area'); main.innerHTML = `
+    <div class="card"><h3>Reports</h3>
+      <div style="display:flex;gap:8px"><button id="rep-today" class="btn">Today</button><button id="rep-yesterday" class="btn">Yesterday</button><input id="rep-from" type="date"><input id="rep-to" type="date"><button id="rep-range" class="btn">Custom</button></div>
+      <div id="rep-area" style="margin-top:12px"></div>
+      <div style="margin-top:8px"><button id="exp-sales" class="btn">Export sales JSON</button></div>
+    </div>
+  `;
+    function show(list){ const area = document.getElementById('rep-area'); area.innerHTML = `<div class="small">Sales: ${list.length}</div>` + list.map(s=>`<div class="card" style="margin-top:8px"><div>${s.id} — ${new Date(s.date).toLocaleString()}</div><div>Total: ₹${(s.total||s.subtotal||0).toFixed(2)}</div></div>`).join(''); }
+    document.getElementById('rep-today').onclick = ()=>{ const d = new Date(); d.setHours(0,0,0,0); const f=d.toISOString(); const e = new Date(d); e.setDate(e.getDate()+1); show(DATA.sales.filter(s=>s.date>=f && s.date<e.toISOString())); };
+    document.getElementById('rep-yesterday').onclick = ()=>{ const d = new Date(); d.setDate(d.getDate()-1); d.setHours(0,0,0,0); const f=d.toISOString(); const e = new Date(d); e.setDate(e.getDate()+1); show(DATA.sales.filter(s=>s.date>=f && s.date<e.toISOString())); };
+    document.getElementById('rep-range').onclick = ()=>{ const f=document.getElementById('rep-from').value; const t=document.getElementById('rep-to').value; if(!f||!t){ alert('Pick dates'); return; } const from=new Date(f+'T00:00:00').toISOString(); const to=new Date(t+'T23:59:59').toISOString(); show(DATA.sales.filter(s=>s.date>=from && s.date<=to)); };
+    document.getElementById('exp-sales').onclick = ()=>{ const blob = new Blob([JSON.stringify(DATA.sales,null,2)],{type:'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='sales.json'; a.click(); URL.revokeObjectURL(url); };
+    // default
+    document.getElementById('rep-today').click();
+  }
 
-    document.getElementById('s-save-location').addEventListener('click',()=>{ DATA.settings.business.location=document.getElementById('s-loc').value; DATA.settings.business.city=document.getElementById('s-city').value; DATA.settings.business.state=document.getElementById('s-state').value; DATA.settings.business.pincode=document.getElementById('s-pincode').value; saveData(DATA); alert('Saved'); });
-    document.getElementById('notif-enabled').checked = !!DATA.settings.notifications.enabled;
-    document.getElementById('notif-enabled').addEventListener('change',ev=>{ DATA.settings.notifications.enabled = ev.target.checked; saveData(DATA); });
-    document.getElementById('notif-view').addEventListener('click',()=>{ const list = DATA.settings.notifications.changes.slice(-10).reverse(); alert(list.map(x=>`${new Date(x.date).toLocaleString()}: ${x.msg}`).join('\n')||'No notifications'}); });
+  // --- Settings ---
+  function renderSettings(){ const main = document.getElementById('main-area'); main.innerHTML = `
+    <div class="card"><h3>Settings</h3>
+      <h4>Admin Login</h4>
+      <label>Admin Email<input id="set-admin-email" type="email"></label>
+      <label>Admin Pass<input id="set-admin-pass" type="password"></label>
+      <div style="display:flex;gap:8px;margin-top:8px"><button id="save-admin" class="btn primary">Save</button><button id="reset-admin" class="btn">Reset</button></div>
+      <h4 style="margin-top:12px">Business Location</h4>
+      <label>Location<input id="set-loc"></label>
+      <label>City<input id="set-city"></label>
+      <label>State<input id="set-state"></label>
+      <label>Pincode<input id="set-pin"></label>
+      <div style="display:flex;gap:8px;margin-top:8px"><button id="save-loc" class="btn">Save</button></div>
+      <h4 style="margin-top:12px">Customers</h4>
+      <button id="add-cust" class="btn">Add customer</button>
+      <div id="cust-area" style="margin-top:8px"></div>
+      <h4 style="margin-top:12px">Notifications</h4>
+      <button id="view-notif" class="btn">View recent</button>
+    </div>
+  `;
+    // admin
+    const admin = DATA.users.find(u=>u.role==='admin'); document.getElementById('set-admin-email').value = admin?admin.email:''; document.getElementById('set-admin-pass').value = admin?admin.pass:'';
+    document.getElementById('save-admin').onclick = ()=>{ if(admin){ admin.email = document.getElementById('set-admin-email').value; admin.pass = document.getElementById('set-admin-pass').value; save(); alert('Saved'); } else { DATA.users.push({email:document.getElementById('set-admin-email').value,first:'Admin',last:'',pass:document.getElementById('set-admin-pass').value,role:'admin'}); save(); alert('Created admin'); } };
+    document.getElementById('reset-admin').onclick = ()=>{ if(confirm('Reset admin to admin@nammo / admin123 ?')){ if(admin){ admin.email='admin@nammo'; admin.pass='admin123'; } else { DATA.users.push({email:'admin@nammo',first:'Admin',last:'User',pass:'admin123',role:'admin'}); } save(); document.getElementById('set-admin-email').value='admin@nammo'; document.getElementById('set-admin-pass').value='admin123'; alert('Reset'); } };
+    // location
+    document.getElementById('set-loc').value = DATA.settings.business.location||''; document.getElementById('set-city').value = DATA.settings.business.city||''; document.getElementById('set-state').value = DATA.settings.business.state||''; document.getElementById('set-pin').value = DATA.settings.business.pincode||'';
+    document.getElementById('save-loc').onclick = ()=>{ DATA.settings.business.location = document.getElementById('set-loc').value; DATA.settings.business.city = document.getElementById('set-city').value; DATA.settings.business.state = document.getElementById('set-state').value; DATA.settings.business.pincode = document.getElementById('set-pin').value; save(); alert('Saved'); };
+    // customers
+    function renderCustomers(){ const area = document.getElementById('cust-area'); area.innerHTML=''; DATA.customers.forEach((c,i)=>{ const div = document.createElement('div'); div.className='card'; div.style.marginTop='6px'; div.innerHTML = `<div><b>${c.name}</b> ${c.active?'<span class="small">(Active)</span>':''}</div><div>${c.phone||''} ${c.email||''} ${c.location||''}</div><div style="margin-top:6px"><button data-i="${i}" class="btn edit">Edit</button> <button data-i="${i}" class="btn del">Del</button></div>`; area.appendChild(div); }); }
+    document.getElementById('add-cust').onclick = ()=>{ const name = prompt('Name'); if(!name) return; const phone = prompt('Phone'); const email = prompt('Email'); const loc = prompt('Location'); const active = confirm('Active?'); DATA.customers.push({name,phone,email,location:loc,active}); save(); renderCustomers(); };
+    document.getElementById('cust-area').onclick = function(e){ if(e.target.classList.contains('del')){ const i = +e.target.dataset.i; if(confirm('Delete?')){ DATA.customers.splice(i,1); save(); renderCustomers(); } } if(e.target.classList.contains('edit')){ const i = +e.target.dataset.i; const c = DATA.customers[i]; const name = prompt('Name',c.name); if(!name) return; c.name = name; c.phone = prompt('Phone',c.phone); c.email = prompt('Email',c.email); c.location = prompt('Location',c.location); c.active = confirm('Active?'); save(); renderCustomers(); } };
+    renderCustomers();
+    document.getElementById('view-notif').onclick = ()=>{ alert((DATA.settings.notifications.slice(-10).map(n=>`${new Date(n.date).toLocaleString()}: ${n.msg}`).reverse().join('
+'))||'No notifications'); };
   }
 
   // start
-  function boot(){ if(DATA.sessions.current){ const u = DATA.users.find(x=>x.email===DATA.sessions.current.email); if(u){ CURRENT_USER={email:u.email,name:u.first+' '+(u.last||''),role:u.role}; renderDashboard(); return; }} renderLogin(); }
-  boot();
-
-  // Footer
-  const foot = document.createElement('footer'); foot.innerText = 'Software Owned by - Karthick Subramanian'; document.body.appendChild(foot);
+  if(DATA.session){ const u = DATA.users.find(x=>x.email===DATA.session.email); if(u){ CURRENT = u; renderApp(); } else { renderLogin(); } } else { renderLogin(); }
 })();
   </script>
 </body>
