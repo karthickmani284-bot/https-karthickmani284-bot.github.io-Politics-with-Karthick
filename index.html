@@ -3,27 +3,101 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bill 24*7</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Bill 24*7 — Single file</title>
+  <style>
+    :root{--accent:#2b7aeb;--muted:#666;--card:#fff;--bg:#f4f7fb}
+    *{box-sizing:border-box;font-family:Inter,system-ui,Arial,Helvetica,sans-serif}
+    body{margin:0;background:var(--bg);color:#222}
+    .nav{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+    .brand{font-weight:700;font-size:18px}
+    .small{font-size:13px;color:var(--muted)}
+    .btn{padding:8px 12px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    .btn:hover{opacity:.95}
+    .primary{background:var(--accent);color:#fff;border-color:transparent}
+    .card{background:var(--card);padding:14px;border-radius:10px;box-shadow:0 6px 18px rgba(33,33,33,.04)}
+    .small.card{max-width:420px;margin:36px auto}
+    form label{display:block;margin:8px 0;font-size:14px}
+    input[type="text"],input[type="email"],input[type="password"],input[type="number"],input[type="date"],select{width:100%;padding:8px;border:1px solid #ddd;border-radius:6px}
+    #main{display:flex;gap:16px;padding:18px}
+    .left{width:320px}
+    .right{flex:1}
+    .panel{margin-bottom:14px}
+    .actions .btn.full{width:100%;display:block;margin-bottom:8px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:13px}
+    .row{display:flex;gap:8px;align-items:center}
+    .row .btn{flex:0}
+    .muted{color:var(--muted);font-size:13px}
+    .totals{margin:10px 0}
+    .big{font-weight:700;font-size:18px}
+    .hidden{display:none}
+    footer{padding:10px;text-align:center;color:var(--muted);font-size:13px}
+  </style>
 </head>
 <body>
   <div id="app"></div>
 
-  <!-- Templates (single-page app) -->
-  <script id="tpl-nav" type="text/template">
-    <header class="nav">
-      <div class="brand">Bill 24*7</div>
-      <div class="nav-right">
-        <span class="small">User: <b>{{userName}}</b> ({{role}})</span>
-        <button id="btn-logout" class="btn">Logout</button>
-      </div>
-    </header>
-  </script>
+  <!-- templates (kept inline for clarity) -->
 
-  <script id="tpl-login" type="text/template">
-    <div class="card small">
-      <h2>Login</h2>
-      <form id="form-login">
+  <script>
+  // Simple single-file app. Fixes login credential errors by ensuring default admin exists
+  (function(){
+    // Utilities
+    const $ = (sel, ctx=document) => ctx.querySelector(sel);
+    const el = (tag, props={}, children=[]) => { const e=document.createElement(tag); Object.assign(e,props); (Array.isArray(children)?children:[children]).forEach(c=>c && e.appendChild(typeof c==='string'?document.createTextNode(c):c)); return e };
+
+    // Storage helpers
+    const STORAGE_KEY = 'bill247_data_v1';
+    function loadData(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return {users:[],products:[],sales:[]};
+      try{return JSON.parse(raw)}catch(e){console.error('corrupt data',e);return {users:[],products:[],sales:[]}}}
+    function saveData(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}
+
+    // ensure default admin exists
+    const data = loadData();
+    if(!data.users) data.users = [];
+    const adminEmail = 'admin@nammo';
+    if(!data.users.find(u=>u.email===adminEmail)){
+      data.users.push({email:adminEmail,password:'admin123',first:'Admin',last:'User',role:'admin',expires:null});
+      saveData(data);
+      console.log('Default admin added: admin@nammo / admin123');
+    }
+
+    // app state
+    const state = {user:null,data:loadData(),view:'login',editingProduct:null};
+
+    // root
+    const root = document.getElementById('app');
+
+    // render functions for templates
+    function render(){
+      root.innerHTML='';
+      if(state.user) renderApp();
+      else renderLogin();
+    }
+
+    // Navigation
+    function renderNav(){
+      const nav = el('header',{className:'nav'});
+      nav.appendChild(el('div',{className:'brand'},['Bill 24*7']));
+      const right = el('div',{className:'nav-right'});
+      right.innerHTML = `<span class="small">User: <b>${state.user.first} ${state.user.last}</b> (${state.user.role})</span> `;
+      const logoutBtn = el('button',{className:'btn',id:'btn-logout'},['Logout']);
+      logoutBtn.addEventListener('click',()=>{state.user=null;state.view='login';render();});
+      right.appendChild(logoutBtn);
+      nav.appendChild(right);
+      root.appendChild(nav);
+    }
+
+    // Login / Signup
+    function renderLogin(){
+      const container = el('div');
+      const card = el('div',{className:'card small'});
+      const h2 = el('h2',{},['Login']);
+      card.appendChild(h2);
+      const form = el('form',{id:'form-login'});
+      form.innerHTML = `
         <label>Email <input type="email" id="login-email" required /></label>
         <label>Password <input type="password" id="login-password" required /></label>
         <div class="row">
@@ -31,14 +105,29 @@
           <button id="go-signup" type="button" class="btn">Signup</button>
         </div>
         <p class="muted">Default admin: <b>admin@nammo</b> / <b>admin123</b></p>
-      </form>
-    </div>
-  </script>
+      `;
+      card.appendChild(form);
+      container.appendChild(card);
+      root.appendChild(container);
 
-  <script id="tpl-signup" type="text/template">
-    <div class="card small">
-      <h2>Signup</h2>
-      <form id="form-signup">
+      // events
+      form.addEventListener('submit',ev=>{
+        ev.preventDefault();
+        const email = form.querySelector('#login-email').value.trim();
+        const pass = form.querySelector('#login-password').value;
+        const user = state.data.users.find(u=>u.email.toLowerCase()===email.toLowerCase() && u.password===pass);
+        if(!user){alert('Invalid credentials. Use admin@nammo / admin123 or create a new account via Signup.');return}
+        state.user = user; state.view='dashboard'; render();
+      });
+      form.querySelector('#go-signup').addEventListener('click',()=>renderSignup());
+    }
+
+    function renderSignup(){
+      root.innerHTML='';
+      const card = el('div',{className:'card small'});
+      card.appendChild(el('h2',{},['Signup']));
+      const form = el('form',{id:'form-signup'});
+      form.innerHTML = `
         <label>First name <input id="su-first" required /></label>
         <label>Last name <input id="su-last" required /></label>
         <label>Email <input id="su-email" type="email" required /></label>
@@ -49,144 +138,244 @@
           <button class="btn primary" type="submit">Create account</button>
           <button id="back-login" type="button" class="btn">Back</button>
         </div>
-      </form>
-    </div>
-  </script>
+      `;
+      card.appendChild(form);
+      root.appendChild(card);
 
-  <script id="tpl-dashboard" type="text/template">
-    <div id="main">
-      <div class="left">
-        <div class="panel">
-          <h3>Quick Actions</h3>
-          <div class="actions">
-            <button id="open-billing" class="btn full">Open Billing</button>
-            <button id="open-products" class="btn full">Products</button>
-            <button id="open-users" class="btn full">Users</button>
-            <button id="open-reports" class="btn full">Reports</button>
-          </div>
-        </div>
+      form.addEventListener('submit',ev=>{
+        ev.preventDefault();
+        const u = {email:form.querySelector('#su-email').value.trim().toLowerCase(),password:form.querySelector('#su-pass').value,first:form.querySelector('#su-first').value,last:form.querySelector('#su-last').value,role:'staff'};
+        if(state.data.users.find(x=>x.email===u.email)){alert('User already exists');return}
+        state.data.users.push(u); saveData(state.data); alert('Account created. Login now.'); render();
+      });
+      form.querySelector('#back-login').addEventListener('click',()=>render());
+    }
 
-        <div class="panel">
-          <h4>Upload CSV Products</h4>
-          <input id="csv-input" type="file" accept=".csv,text/csv" />
-          <p class="muted">CSV columns: sku,name,price,quantity,barcode</p>
-          <button id="import-csv" class="btn">Import CSV</button>
-          <button id="export-products" class="btn">Export products.json</button>
-        </div>
+    // full app
+    function renderApp(){
+      renderNav();
+      const main = el('div',{id:'main'});
+      const left = el('div',{className:'left'});
 
-        <div class="panel">
-          <h4>Site Data</h4>
-          <button id="backup-json" class="btn">Download JSON</button>
-          <button id="restore-json" class="btn">Upload JSON</button>
-          <input id="restore-file" type="file" accept=".json" style="display:none" />
-        </div>
-      </div>
+      // Quick actions
+      const panel = el('div',{className:'panel card'});
+      panel.appendChild(el('h3',{},['Quick Actions']));
+      const actions = el('div',{className:'actions'});
+      ['Open Billing','Products','Users','Reports'].forEach((t,i)=>{
+        const btn = el('button',{className:'btn full'},[t]);
+        btn.addEventListener('click',()=>{const views=['billing','products','users','reports']; state.view=views[i]; renderApp();});
+        actions.appendChild(btn);
+      });
+      panel.appendChild(actions);
+      left.appendChild(panel);
 
-      <div class="right" id="right-panel">
-        <!-- dynamic region: billing/products/users/reports -->
-      </div>
-    </div>
-  </script>
+      // CSV + backup
+      const panel2 = el('div',{className:'panel card'});
+      panel2.appendChild(el('h4',{},['Upload CSV Products']));
+      const csvInput = el('input',{type:'file',id:'csv-input',accept:'.csv'});
+      panel2.appendChild(csvInput);
+      panel2.appendChild(el('p',{className:'muted'},['CSV columns: sku,name,price,quantity,barcode']));
+      const importBtn = el('button',{className:'btn'},['Import CSV']);
+      const exportBtn = el('button',{className:'btn'},['Export products.json']);
+      panel2.appendChild(importBtn); panel2.appendChild(exportBtn);
+      left.appendChild(panel2);
 
-  <script id="tpl-products" type="text/template">
-    <div class="panel">
-      <h3>Products</h3>
-      <button id="add-product-btn" class="btn">Add product</button>
-      <table class="table" id="products-table">
-        <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Barcode</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="product-form" style="display:none" class="card">
-        <h4 id="product-form-title">Add Product</h4>
+      const panel3 = el('div',{className:'panel card'});
+      panel3.appendChild(el('h4',{},['Site Data']));
+      const backupBtn = el('button',{className:'btn'},['Download JSON']);
+      const restoreBtn = el('button',{className:'btn'},['Upload JSON']);
+      const restoreFile = el('input',{type:'file',id:'restore-file',accept:'.json',style:'display:none'});
+      panel3.appendChild(backupBtn); panel3.appendChild(restoreBtn); panel3.appendChild(restoreFile);
+      left.appendChild(panel3);
+
+      main.appendChild(left);
+      const right = el('div',{className:'right'});
+      right.innerHTML = '';
+
+      // Render current view
+      if(state.view==='products') renderProducts(right);
+      else if(state.view==='users') renderUsers(right);
+      else if(state.view==='billing') renderBilling(right);
+      else if(state.view==='reports') renderReports(right);
+      else renderBilling(right);
+
+      main.appendChild(right);
+      root.appendChild(main);
+
+      // events
+      importBtn.addEventListener('click',()=>{
+        const f = csvInput.files[0]; if(!f){alert('Select CSV file first');return}
+        const reader = new FileReader();
+        reader.onload = e=>{
+          const txt = e.target.result; const rows = txt.split(/\r?\n/).map(r=>r.trim()).filter(Boolean);
+          rows.forEach((r,i)=>{ if(i===0 && r.toLowerCase().includes('sku')) return; const cols=r.split(',').map(c=>c.trim()); const [sku,name,price,quantity,barcode]=cols; if(!sku) return; state.data.products.push({sku,name,price:Number(price||0),quantity:Number(quantity||0),barcode}); });
+          saveData(state.data); alert('Imported'); render();
+        }; reader.readAsText(f);
+      });
+
+      exportBtn.addEventListener('click',()=>{ const blob=new Blob([JSON.stringify(state.data.products,null,2)],{type:'application/json'}); const u=URL.createObjectURL(blob); const a=el('a',{href:u,download:'products.json'}); document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);} );
+
+      backupBtn.addEventListener('click',()=>{ const blob=new Blob([JSON.stringify(state.data,null,2)],{type:'application/json'}); const u=URL.createObjectURL(blob); const a=el('a',{href:u,download:'site-backup.json'}); document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);} );
+
+      restoreBtn.addEventListener('click',()=>restoreFile.click());
+      restoreFile.addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ try{ state.data=JSON.parse(ev.target.result); saveData(state.data); alert('Site data restored'); render(); }catch(err){alert('Invalid JSON') } }; r.readAsText(f); });
+    }
+
+    // Products view
+    function renderProducts(container){
+      const panel = el('div',{className:'panel card'});
+      panel.appendChild(el('h3',{},['Products']));
+      const addBtn = el('button',{className:'btn'},['Add product']);
+      panel.appendChild(addBtn);
+      const table = el('table',{className:'table'});
+      table.innerHTML = `<thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Barcode</th><th>Actions</th></tr></thead><tbody></tbody>`;
+      const tbody = table.querySelector('tbody');
+      state.data.products.forEach(p=>{
+        const tr = el('tr'); tr.innerHTML = `<td>${p.sku}</td><td>${p.name}</td><td>${p.price}</td><td>${p.quantity}</td><td>${p.barcode||''}</td><td></td>`;
+        const actionTd = tr.querySelector('td:last-child');
+        const edit = el('button',{className:'btn'},['Edit']);
+        const del = el('button',{className:'btn'},['Delete']);
+        edit.addEventListener('click',()=>{ state.editingProduct = p; state.view='products'; render(); document.getElementById('p-sku').value=p.sku; document.getElementById('p-name').value=p.name; document.getElementById('p-price').value=p.price; document.getElementById('p-qty').value=p.quantity; document.getElementById('p-barcode').value=p.barcode; document.getElementById('product-form').style.display='block'; document.getElementById('product-form-title').innerText='Edit Product'; });
+        del.addEventListener('click',()=>{ if(confirm('Delete product?')){ state.data.products = state.data.products.filter(x=>x!==p); saveData(state.data); render(); } });
+        actionTd.appendChild(edit); actionTd.appendChild(del);
+        tbody.appendChild(tr);
+      });
+      panel.appendChild(table);
+
+      // form
+      const formCard = el('div',{className:'card',id:'product-form',style:'display:none;margin-top:10px'});
+      formCard.innerHTML = `<h4 id="product-form-title">Add Product</h4>
         <form id="form-product">
           <label>SKU <input id="p-sku" required/></label>
           <label>Name <input id="p-name" required/></label>
           <label>Price <input id="p-price" type="number" required/></label>
           <label>Quantity <input id="p-qty" type="number" required/></label>
           <label>Barcode <input id="p-barcode"/></label>
-          <div class="row">
-            <button class="btn primary" type="submit">Save</button>
-            <button id="cancel-product" type="button" class="btn">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </script>
+          <div class="row"><button class="btn primary" type="submit">Save</button><button id="cancel-product" type="button" class="btn">Cancel</button></div>
+        </form>`;
+      panel.appendChild(formCard);
 
-  <script id="tpl-users" type="text/template">
-    <div class="panel">
-      <h3>Users</h3>
-      <button id="create-user-btn" class="btn">Create User</button>
-      <table class="table" id="users-table">
-        <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Expires</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      container.appendChild(panel);
 
-      <div id="user-form" style="display:none" class="card">
-        <h4 id="user-form-title">Create User</h4>
+      addBtn.addEventListener('click',()=>{ document.getElementById('product-form').style.display='block'; document.getElementById('product-form-title').innerText='Add Product'; document.getElementById('form-product').reset(); state.editingProduct=null; });
+
+      const form = panel.querySelector('#form-product');
+      form.addEventListener('submit',ev=>{
+        ev.preventDefault(); const sku = form.querySelector('#p-sku').value.trim(); const name=form.querySelector('#p-name').value.trim(); const price=Number(form.querySelector('#p-price').value)||0; const qty=Number(form.querySelector('#p-qty').value)||0; const barcode=form.querySelector('#p-barcode').value.trim();
+        if(state.editingProduct){ // update
+          state.editingProduct.sku=sku; state.editingProduct.name=name; state.editingProduct.price=price; state.editingProduct.quantity=qty; state.editingProduct.barcode=barcode;
+        }else{ state.data.products.push({sku,name,price,quantity:qty,barcode}); }
+        saveData(state.data); document.getElementById('product-form').style.display='none'; render();
+      });
+      panel.querySelector('#cancel-product').addEventListener('click',()=>{ document.getElementById('product-form').style.display='none'; state.editingProduct=null; });
+    }
+
+    // Users view
+    function renderUsers(container){
+      const panel = el('div',{className:'panel card'});
+      panel.appendChild(el('h3',{},['Users']));
+      const addBtn = el('button',{className:'btn'},['Create User']);
+      panel.appendChild(addBtn);
+      const table = el('table'); table.innerHTML = `<thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Expires</th><th>Actions</th></tr></thead><tbody></tbody>`;
+      const tbody = table.querySelector('tbody');
+      state.data.users.forEach(u=>{ const tr=el('tr'); tr.innerHTML=`<td>${u.email}</td><td>${u.first||''} ${u.last||''}</td><td>${u.role||'staff'}</td><td>${u.expires||''}</td><td></td>`; const td=tr.querySelector('td:last-child'); const del=el('button',{className:'btn'},['Delete']); del.addEventListener('click',()=>{ if(confirm('Delete user?')){ state.data.users=state.data.users.filter(x=>x!==u); saveData(state.data); render(); }}); td.appendChild(del); tbody.appendChild(tr); });
+      panel.appendChild(table);
+      // create form
+      const formCard = el('div',{className:'card',id:'user-form',style:'display:none;margin-top:10px'});
+      formCard.innerHTML = `<h4 id="user-form-title">Create User</h4>
         <form id="form-user">
           <label>Email <input id="u-email" type="email" required/></label>
           <label>First name <input id="u-first" required/></label>
           <label>Last name <input id="u-last" required/></label>
           <label>Password <input id="u-pass" required/></label>
           <label>Role:
-            <select id="u-role">
-              <option value="staff">Staff</option>
-              <option value="admin">Admin</option>
-            </select>
+            <select id="u-role"><option value="staff">Staff</option><option value="admin">Admin</option></select>
           </label>
           <label>Expiry date (optional) <input id="u-expiry" type="date"/></label>
-          <div class="row">
-            <button class="btn primary" type="submit">Save</button>
-            <button id="cancel-user" type="button" class="btn">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
+          <div class="row"><button class="btn primary" type="submit">Save</button><button id="cancel-user" type="button" class="btn">Cancel</button></div>
+        </form>`;
+      panel.appendChild(formCard);
+      container.appendChild(panel);
+      addBtn.addEventListener('click',()=>{ document.getElementById('user-form').style.display='block'; });
+      const form = panel.querySelector('#form-user');
+      form.addEventListener('submit',ev=>{ ev.preventDefault(); const u={email:form.querySelector('#u-email').value.trim().toLowerCase(),first:form.querySelector('#u-first').value,last:form.querySelector('#u-last').value,password:form.querySelector('#u-pass').value,role:form.querySelector('#u-role').value,expires:form.querySelector('#u-expiry').value||null}; if(state.data.users.find(x=>x.email===u.email)){alert('User exists'); return} state.data.users.push(u); saveData(state.data); alert('User created'); render(); });
+      panel.querySelector('#cancel-user').addEventListener('click',()=>{ document.getElementById('user-form').style.display='none'; });
+    }
+
+    // Billing view
+    function renderBilling(container){
+      const panel = el('div',{className:'panel card'});
+      panel.appendChild(el('h3',{},['Billing']));
+      const row = el('div',{className:'row small'});
+      row.innerHTML = `<label>Customer name <input id="bill-customer" /></label><label>GST % <input id="bill-gst" type="number" value="18" /></label><label>Discount (₹)<input id="bill-discount" type="number" value="0" /></label>`;
+      panel.appendChild(row);
+      const searchRow = el('div',{className:'row'});
+      searchRow.innerHTML = `<input id="search-product" placeholder="Search product by name or SKU or barcode" /><button id="scan-barcode" class="btn">Scan barcode</button>`;
+      panel.appendChild(searchRow);
+      const table = el('table',{className:'table',id:'cart-table'});
+      table.innerHTML = `<thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Line</th><th>Action</th></tr></thead><tbody></tbody>`;
+      const tbody = table.querySelector('tbody');
+      panel.appendChild(table);
+      const totals = el('div',{className:'totals'});
+      totals.innerHTML = `<div>Subtotal: <span id="sub-total">0.00</span></div><div>GST: <span id="gst-amt">0.00</span></div><div>Discount: <span id="disc-amt">0.00</span></div><div class="big">Total: <span id="total-amt">0.00</span></div>`;
+      panel.appendChild(totals);
+      const actions = el('div',{className:'row'});
+      const final = el('button',{className:'btn primary',id:'finalise-bill'},['Complete Sale']);
+      const printBtn = el('button',{className:'btn',id:'print-bill'},['Print']);
+      const clearBtn = el('button',{className:'btn',id:'clear-cart'},['Clear']);
+      actions.appendChild(final); actions.appendChild(printBtn); actions.appendChild(clearBtn);
+      panel.appendChild(actions);
+      container.appendChild(panel);
+
+      // cart state
+      const cart = [];
+      function redrawCart(){ tbody.innerHTML=''; let subtotal=0; cart.forEach((c,idx)=>{ const tr=el('tr'); const line=(c.price*c.qty); subtotal+=line; tr.innerHTML=`<td>${c.sku}</td><td>${c.name}</td><td>${c.price}</td><td><input type="number" value="${c.qty}" min="1" data-idx="${idx}" style="width:70px"/></td><td>${line.toFixed(2)}</td><td></td>`; const td = tr.querySelector('td:last-child'); const rem=el('button',{className:'btn'},['Remove']); rem.addEventListener('click',()=>{ cart.splice(idx,1); redrawCart(); }); td.appendChild(rem); tbody.appendChild(tr); });
+        const gst = subtotal * (Number($('#bill-gst')?.value||18)/100);
+        const disc = Number($('#bill-discount')?.value||0);
+        const total = subtotal + gst - disc;
+        $('#sub-total') ? $('#sub-total').innerText = subtotal.toFixed(2) : null;
+        $('#gst-amt') ? $('#gst-amt').innerText = gst.toFixed(2) : null;
+        $('#disc-amt') ? $('#disc-amt').innerText = disc.toFixed(2) : null;
+        $('#total-amt') ? $('#total-amt').innerText = total.toFixed(2) : null;
+      }
+
+      // product search handler
+      const search = panel.querySelector('#search-product');
+      search.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); const q = search.value.trim().toLowerCase(); if(!q) return; const p = state.data.products.find(x=> (x.sku&&x.sku.toLowerCase()===q) || (x.barcode&&x.barcode.toLowerCase()===q) || (x.name&&x.name.toLowerCase().includes(q)) ); if(!p){alert('Product not found');return} cart.push({sku:p.sku,name:p.name,price:Number(p.price)||0,qty:1}); redrawCart(); search.value=''; } });
+
+      final.addEventListener('click',()=>{ if(cart.length===0){alert('Cart empty');return} const sale={id:Date.now(),customer:panel.querySelector('#bill-customer').value,items:cart.slice(),gst:Number(panel.querySelector('#bill-gst').value||18),discount:Number(panel.querySelector('#bill-discount').value||0),total:Number($('#total-amt').innerText)||0,date:new Date().toISOString()}; state.data.sales.push(sale); // reduce stock
+        cart.forEach(ci=>{ const prod = state.data.products.find(p=>p.sku===ci.sku); if(prod) prod.quantity = Math.max(0,(Number(prod.quantity)-Number(ci.qty))); });
+        saveData(state.data); alert('Sale recorded'); cart.length=0; redrawCart(); render(); });
+
+      printBtn.addEventListener('click',()=>{ window.print(); });
+      clearBtn.addEventListener('click',()=>{ if(confirm('Clear cart?')){ cart.length=0; redrawCart(); } });
+
+      // listen to gst/discount change
+      panel.querySelector('#bill-gst').addEventListener('change',redrawCart);
+      panel.querySelector('#bill-discount').addEventListener('change',redrawCart);
+    }
+
+    // Reports view
+    function renderReports(container){
+      const panel = el('div',{className:'panel card'});
+      panel.appendChild(el('h3',{},['Reports']));
+      const area = el('div',{id:'reports-area'});
+      if(state.data.sales.length===0) area.appendChild(el('div',{className:'muted'},['No sales yet.']));
+      else{
+        const table = el('table'); table.innerHTML='<thead><tr><th>ID</th><th>Date</th><th>Customer</th><th>Total</th></tr></thead><tbody></tbody>';
+        const tb=table.querySelector('tbody'); state.data.sales.forEach(s=>{ const tr=el('tr'); tr.innerHTML=`<td>${s.id}</td><td>${new Date(s.date).toLocaleString()}</td><td>${s.customer||''}</td><td>${s.total}</td>`; tb.appendChild(tr); }); area.appendChild(table);
+      }
+      const exportBtn = el('button',{className:'btn',id:'export-sales'},['Export sales JSON']);
+      exportBtn.addEventListener('click',()=>{ const blob=new Blob([JSON.stringify(state.data.sales,null,2)],{type:'application/json'}); const u=URL.createObjectURL(blob); const a=el('a',{href:u,download:'sales.json'}); document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);} );
+      panel.appendChild(area); panel.appendChild(exportBtn); container.appendChild(panel);
+    }
+
+    // initial render
+    render();
+  })();
   </script>
 
-  <script id="tpl-billing" type="text/template">
-    <div class="panel">
-      <h3>Billing</h3>
-      <div class="row small">
-        <label>Customer name <input id="bill-customer" /></label>
-        <label>GST % <input id="bill-gst" type="number" value="18" /></label>
-        <label>Discount (₹)<input id="bill-discount" type="number" value="0" /></label>
-      </div>
-
-      <div class="row">
-        <input id="search-product" placeholder="Search product by name or SKU or barcode" />
-        <button id="scan-barcode" class="btn">Scan barcode</button>
-      </div>
-
-      <table class="table" id="cart-table">
-        <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Line</th><th>Action</th></tr></thead>
-        <tbody></tbody>
-      </table>
-
-      <div class="totals">
-        <div>Subtotal: <span id="sub-total">0.00</span></div>
-        <div>GST: <span id="gst-amt">0.00</span></div>
-        <div>Discount: <span id="disc-amt">0.00</span></div>
-        <div class="big">Total: <span id="total-amt">0.00</span></div>
-      </div>
-
-      <div class="row">
-        <button id="finalise-bill" class="btn primary">Complete Sale</button>
-        <button id="print-bill" class="btn">Print</button>
-        <button id="clear-cart" class="btn">Clear</button>
-      </div>
-    </div>
-  </script>
-
-  <script id="tpl-reports" type="text/template">
-    <div class="panel">
-      <h3>Reports</h3>
-      <div id="reports-area"></div>
-      <button id="export-sales" class="btn">Export sales JSON</button>
-    </div>
-  </script>
-
-  <script src="app.js"></script>
+  <footer>Software owned by — Karthick Subramanian</footer>
 </body>
 </html>
+
