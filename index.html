@@ -1,422 +1,511 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Nammo Billing — Simple POS (Frontend Demo)</title>
-<meta name="description" content="Nammo Billing - front-end demo (signup, products, CSV import, billing, admin/staff roles)"/>
-<style>
-  :root{--accent:#0b84ff;--danger:#dc3545;--muted:#6b7280;--bg:#0f1724;--card:#0b1220}
-  *{box-sizing:border-box}
-  body{font-family:Inter,system-ui,Arial; margin:0; background:linear-gradient(180deg,#081225,#071428); color:#e6eef6}
-  .wrap{max-width:1100px;margin:22px auto;padding:18px}
-  header{display:flex;gap:12px;align-items:center}
-  h1{margin:0;font-size:20px}
-  .lead{color:var(--muted);font-size:13px}
-  nav{margin-left:auto;display:flex;gap:8px}
-  button, .btn{background:var(--accent);color:#fff;padding:8px 10px;border-radius:8px;border:0;cursor:pointer;font-weight:600}
-  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04)}
-  .grid{display:grid;grid-template-columns:1fr 360px;gap:16px;margin-top:16px}
-  .card{background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
-  label{display:block;font-size:13px;color:var(--muted);margin-top:8px}
-  input, select, textarea{width:100%;padding:8px;margin-top:6px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
-  .muted{color:var(--muted);font-size:13px}
-  .chip{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:13px}
-  .small{font-size:13px;color:var(--muted)}
-  .danger{background:var(--danger);padding:6px 10px;border-radius:8px;color:#fff;border:0}
-  .center{display:flex;gap:8px;align-items:center}
-  .row{display:flex;gap:8px}
-  .product-suggestion{cursor:pointer;padding:6px;border-radius:6px}
-  footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
-  .hidden{display:none}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bill 365 (Updated)</title>
+  <style>
+    /* Minimal embedded styles so this file runs standalone */
+    :root{--accent:#2b7aeb;--muted:#777;--card:#fff;--bg:#f3f6fb}
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial;background:var(--bg);color:#222}
+    .nav{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:#fff;border-bottom:1px solid #e6e9ef}
+    .brand{font-weight:700}
+    .nav-right{display:flex;gap:12px;align-items:center}
+    .small{font-size:13px;color:var(--muted)}
+    .btn{padding:8px 10px;border:1px solid #d0d6e0;background:#fff;border-radius:6px;cursor:pointer}
+    .btn.primary{background:var(--accent);color:#fff;border-color:transparent}
+    .card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 2px 6px rgba(20,30,50,0.04)}
+    .row{display:flex;gap:8px;align-items:center}
+    .left{width:300px;padding:12px}
+    #main{display:flex;gap:12px;padding:12px}
+    .panel{margin-bottom:12px}
+    input,select{padding:8px;border:1px solid #d6dbe8;border-radius:6px;width:100%;box-sizing:border-box}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left}
+    .muted{color:var(--muted);font-size:13px}
+    #right-panel{flex:1;padding:12px}
+    footer{padding:12px;text-align:center;color:var(--muted);font-size:13px}
+    .tabs{display:flex;gap:8px;margin-bottom:8px}
+    .tab{padding:8px 10px;border:1px solid #dfe6f3;border-radius:6px;cursor:pointer}
+    .tab.active{background:var(--accent);color:#fff;border-color:transparent}
+    .hidden{display:none}
+    .badge{padding:3px 6px;border-radius:20px;background:#f0f4ff;font-size:12px}
+  </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>Nammo Billing</h1>
-        <div class="lead">Simple POS (frontend demo) — Signup → Products → Quick Sale</div>
+  <div id="app"></div>
+
+  <!-- Templates (single-page app) -->
+  <script id="tpl-nav" type="text/template">
+    <header class="nav">
+      <div class="brand">Bill 365</div>
+      <div class="nav-right">
+        <button id="btn-notifications" class="btn">Notifications <span id="notif-count" class="badge">0</span></button>
+        <button id="btn-settings" class="btn">Settings</button>
+        <span class="small">User: <b>{{userName}}</b> ({{role}})</span>
+        <button id="btn-logout" class="btn">Logout</button>
       </div>
-      <nav id="topNav">
-        <span id="who" class="muted">Not signed in</span>
-        <button class="btn" id="btnShowLogin">Login / Signup</button>
-      </nav>
     </header>
+  </script>
 
-    <main class="grid">
-      <section>
-        <!-- DASHBOARD (changes by view) -->
-        <div id="viewDashboard" class="card">
-          <h2>Dashboard</h2>
-          <div class="small muted">Quick actions</div>
-          <div style="margin-top:10px" class="row">
-            <button class="btn" id="goProducts">Products</button>
-            <button class="btn" id="goBilling">Quick Sale</button>
-            <button class="btn" id="goUsers">Manage Users</button>
-            <button class="btn ghost" id="exportData">Export Data (JSON)</button>
-          </div>
-          <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)"/>
-          <div>
-            <strong>Inventory summary</strong>
-            <div id="invSummary" class="muted small" style="margin-top:8px">Loading...</div>
+  <script id="tpl-login" type="text/template">
+    <div class="card small" style="max-width:420px;margin:24px auto">
+      <h2>Login</h2>
+      <form id="form-login">
+        <label>Email <input type="email" id="login-email" required /></label>
+        <label>Password <input type="password" id="login-password" required /></label>
+        <div class="row">
+          <button class="btn primary" type="submit">Login</button>
+          <button id="go-signup" type="button" class="btn">Signup</button>
+        </div>
+        <p class="muted">Default admin: <b>admin@nammo</b> / <b>admin123</b></p>
+      </form>
+    </div>
+  </script>
+
+  <script id="tpl-dashboard" type="text/template">
+    <div id="main">
+      <div class="left">
+        <div class="panel card">
+          <h3>Quick Actions</h3>
+          <div class="actions">
+            <button id="open-billing" class="btn full">Open Billing</button>
+            <button id="open-products" class="btn full">Products</button>
+            <button id="open-users" class="btn full">Users</button>
+            <button id="open-reports" class="btn full">Reports</button>
           </div>
         </div>
 
-        <!-- PRODUCTS -->
-        <div id="viewProducts" class="card hidden">
-          <h2>Products — Manual & CSV Import</h2>
-          <div class="small muted">Create or upload product list. Barcode is optional.</div>
-
-          <label>Product name</label>
-          <input id="p_name" placeholder="e.g. Archie Masala"/>
-
-          <label>Price (₹)</label>
-          <input id="p_price" type="number" step="0.01" placeholder="100"/>
-
-          <label>Quantity</label>
-          <input id="p_qty" type="number" placeholder="10"/>
-
-          <label>Barcode (optional)</label>
-          <input id="p_barcode" placeholder="1234567890123"/>
-
-          <div style="margin-top:10px;display:flex;gap:8px">
-            <button class="btn" id="addProduct">Add / Update Product</button>
-            <button class="btn ghost" id="clearProducts">Clear All (admin only)</button>
-          </div>
-
-          <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)"/>
-
-          <div>
-            <label>Upload CSV (Excel -> Save as CSV)</label>
-            <input id="csvFile" type="file" accept=".csv"/>
-            <div class="small muted">CSV format: name,price,qty,barcode (header optional)</div>
-            <div style="margin-top:8px"><button class="btn" id="importCSV">Import CSV</button></div>
-          </div>
-
-          <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)"/>
-
-          <h3 style="margin:0">Product list</h3>
-          <div style="max-height:280px;overflow:auto;margin-top:8px">
-            <table id="productTable"><thead><tr><th>Name</th><th>Price</th><th>Qty</th><th>Barcode</th><th></th></tr></thead><tbody></tbody></table>
-          </div>
+        <div class="panel card">
+          <h4>Upload CSV Products</h4>
+          <input id="csv-input" type="file" accept=".csv,text/csv" />
+          <p class="muted">CSV columns: sku,name,price,quantity,barcode</p>
+          <button id="import-csv" class="btn">Import CSV</button>
+          <button id="export-products" class="btn">Export products.json</button>
         </div>
 
-        <!-- BILLING -->
-        <div id="viewBilling" class="card hidden">
-          <h2>Quick Sale</h2>
-          <div class="small muted">Add items, apply discount & GST, then Complete Sale to reduce stock.</div>
-
-          <label>Search product (by name or barcode)</label>
-          <input id="searchProd" placeholder="Type product or scan barcode"/>
-
-          <div id="suggestions" style="margin-top:6px"></div>
-
-          <div style="margin-top:10px">
-            <table id="cartTable"><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Subtotal</th><th></th></tr></thead><tbody></tbody></table>
-          </div>
-
-          <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
-            <label style="margin:0">Discount</label>
-            <select id="discType"><option value="percent">Percent %</option><option value="fixed">Fixed ₹</option></select>
-            <input id="discVal" type="number" value="0" style="width:120px"/>
-            <label style="margin:0">GST</label>
-            <select id="gstRate"><option value="0">No GST</option><option value="5">5%</option><option value="12">12%</option><option value="18" selected>18%</option></select>
-            <button class="btn" id="completeSale">Complete Sale</button>
-          </div>
-
-          <div style="margin-top:12px" class="muted small" id="billSummary"></div>
+        <div class="panel card">
+          <h4>Site Data</h4>
+          <button id="backup-json" class="btn">Download JSON</button>
+          <button id="restore-json" class="btn">Upload JSON</button>
+          <input id="restore-file" type="file" accept=".json" style="display:none" />
         </div>
 
-        <!-- USERS (Admin & Staff) -->
-        <div id="viewUsers" class="card hidden">
-          <h2>Users</h2>
-          <div class="small muted">Create staff & manage expiry. First created account becomes Admin.</div>
-
-          <label>First name</label><input id="u_fname"/>
-          <label>Last name</label><input id="u_lname"/>
-          <label>Phone</label><input id="u_phone"/>
-          <label>Email</label><input id="u_email"/>
-          <label>Password</label><input id="u_pass" type="password"/>
-          <label>Role</label>
-          <select id="u_role">
-            <option value="staff">Staff</option>
-            <option value="admin">Admin</option>
-          </select>
-          <label>Expiry date (yyyy-mm-dd)</label><input id="u_expiry" type="date"/>
-          <div style="margin-top:8px;display:flex;gap:8px">
-            <button class="btn" id="createUser">Create user</button>
-            <button class="btn ghost" id="listUsers">View users</button>
-          </div>
-
-          <div style="margin-top:12px;max-height:220px;overflow:auto">
-            <table id="usersTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Expiry</th><th></th></tr></thead><tbody></tbody></table>
-          </div>
+        <div class="panel card">
+          <h4>Footer</h4>
+          <div class="muted">Software Owned by - <b>Karthick Subramanian</b></div>
         </div>
+      </div>
 
-      </section>
+      <div class="right" id="right-panel">
+        <!-- dynamic region: billing/products/users/reports/settings/notifications -->
+      </div>
+    </div>
+  </script>
 
-      <aside>
-        <div class="card">
-          <h3>Account</h3>
-          <div id="accountBox">
-            <div class="muted small">No active session</div>
-            <div style="margin-top:8px">
-              <button class="btn" id="btnLogin">Login</button>
-              <button class="btn ghost" id="btnSignup">Signup</button>
-            </div>
+  <script id="tpl-products" type="text/template">
+    <div class="panel card">
+      <h3>Products</h3>
+      <button id="add-product-btn" class="btn">Add product</button>
+      <table class="table" id="products-table">
+        <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Barcode</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="product-form" style="display:none" class="card">
+        <h4 id="product-form-title">Add Product</h4>
+        <form id="form-product">
+          <label>SKU <input id="p-sku" required/></label>
+          <label>Name <input id="p-name" required/></label>
+          <label>Price <input id="p-price" type="number" required/></label>
+          <label>Quantity <input id="p-qty" type="number" required/></label>
+          <label>Barcode <input id="p-barcode"/></label>
+          <div class="row">
+            <button class="btn primary" type="submit">Save</button>
+            <button id="cancel-product" type="button" class="btn">Cancel</button>
           </div>
+        </form>
+      </div>
+    </div>
+  </script>
 
-          <div style="margin-top:12px" class="hidden" id="adminActions">
-            <h4>Admin</h4>
-            <div class="small muted">Admin-only controls</div>
-            <label>Extend user expiry (email)</label>
-            <input id="extendEmail"/>
-            <label>New expiry date</label>
-            <input id="extendDate" type="date"/>
-            <div style="margin-top:8px"><button class="btn" id="btnExtend">Extend</button></div>
+  <script id="tpl-users" type="text/template">
+    <div class="panel card">
+      <h3>Users</h3>
+      <button id="create-user-btn" class="btn">Create User</button>
+      <table class="table" id="users-table">
+        <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Expires</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <div id="user-form" style="display:none" class="card">
+        <h4 id="user-form-title">Create User</h4>
+        <form id="form-user">
+          <label>Email <input id="u-email" type="email" required/></label>
+          <label>First name <input id="u-first" required/></label>
+          <label>Last name <input id="u-last" required/></label>
+          <label>Password <input id="u-pass" required/></label>
+          <label>Role:
+            <select id="u-role">
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label>Expiry date (optional) <input id="u-expiry" type="date"/></label>
+          <div class="row">
+            <button class="btn primary" type="submit">Save</button>
+            <button id="cancel-user" type="button" class="btn">Cancel</button>
           </div>
+        </form>
+      </div>
+    </div>
+  </script>
+
+  <script id="tpl-billing" type="text/template">
+    <div class="panel card">
+      <h3>Billing</h3>
+      <div class="row small">
+        <label>Customer name <input id="bill-customer" /></label>
+        <label>GST % <input id="bill-gst" type="number" value="18" /></label>
+        <label>Discount (₹) <input id="bill-discount" type="number" value="0" /></label>
+        <button id="apply-discount" class="btn">Apply Discount</button>
+      </div>
+
+      <div class="row">
+        <input id="search-product" placeholder="Search product by name or SKU or barcode" />
+        <button id="scan-barcode" class="btn">Scan barcode</button>
+      </div>
+
+      <table class="table" id="cart-table">
+        <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Line</th><th>Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="totals">
+        <div>Subtotal: <span id="sub-total">0.00</span></div>
+        <div>GST: <span id="gst-amt">0.00</span></div>
+        <div>Discount: <span id="disc-amt">0.00</span></div>
+        <div class="big">Total: <span id="total-amt">0.00</span></div>
+      </div>
+
+      <div class="row">
+        <button id="finalise-bill" class="btn primary">Complete Sale</button>
+        <button id="print-bill" class="btn">Print</button>
+        <button id="clear-cart" class="btn">Clear</button>
+      </div>
+    </div>
+  </script>
+
+  <script id="tpl-reports" type="text/template">
+    <div class="panel card">
+      <h3>Reports</h3>
+      <div class="tabs">
+        <div id="rep-today" class="tab">Today</div>
+        <div id="rep-yesterday" class="tab">Yesterday</div>
+        <div id="rep-custom" class="tab">Custom Range</div>
+      </div>
+
+      <div id="reports-area"></div>
+
+      <div id="custom-range" class="hidden">
+        <label>From <input id="from-date" type="date"/></label>
+        <label>To <input id="to-date" type="date"/></label>
+        <button id="filter-range" class="btn">Filter</button>
+      </div>
+
+      <button id="export-sales" class="btn">Export sales JSON</button>
+    </div>
+  </script>
+
+  <script id="tpl-settings" type="text/template">
+    <div class="panel card">
+      <h3>Settings</h3>
+      <div class="tabs">
+        <div data-tab="login" class="tab active">Login Details</div>
+        <div data-tab="customers" class="tab">Customer Fields</div>
+        <div data-tab="business" class="tab">Business Location</div>
+      </div>
+
+      <div id="settings-login">
+        <h4>Admin login</h4>
+        <label>Admin email <input id="admin-email" type="email"/></label>
+        <label>Admin password <input id="admin-pass" type="password"/></label>
+        <div class="row">
+          <button id="save-login" class="btn primary">Save</button>
+          <button id="reset-login" class="btn">Reset to default</button>
+          <button id="forget-login" class="btn">Forget credentials</button>
         </div>
+        <p class="muted">Reset will populate default admin@nammo / admin123. Forget will clear stored credentials.</p>
+      </div>
 
-        <div style="height:12px"></div>
-
-        <div class="card">
-          <h4>About</h4>
-          <div class="small muted">Product name: <strong>Nammo Billing</strong></div>
-          <div style="margin-top:8px">
-            <button class="btn ghost" id="signOut">Sign out</button>
-          </div>
+      <div id="settings-customers" class="hidden">
+        <h4>Customer fields</h4>
+        <label>Show Phone <input id="c-phone" type="checkbox" checked/></label>
+        <label>Show Email <input id="c-email" type="checkbox" checked/></label>
+        <label>Show Location <input id="c-location" type="checkbox" checked/></label>
+        <label>Active highlight (days) <input id="c-active-days" type="number" value="30"/></label>
+        <div class="row">
+          <button id="save-customer-settings" class="btn primary">Save</button>
         </div>
-      </aside>
-    </main>
+      </div>
 
-    <footer>Nammo Billing — Demo frontend. Not secure for production. For backend upgrade, ask me.</footer>
-  </div>
+      <div id="settings-business" class="hidden">
+        <h4>Business location</h4>
+        <label>Location <input id="b-location"/></label>
+        <label>City <input id="b-city"/></label>
+        <label>State <input id="b-state"/></label>
+        <label>Pincode <input id="b-pincode"/></label>
+        <div class="row"><button id="save-business" class="btn primary">Save</button></div>
+      </div>
+    </div>
+  </script>
 
-<script>
-/* =======================
-   Simple client-side POS
-   - localStorage used: users, products, sales
-   - passwords: base64 (NOT secure) — use server auth later
-   ======================= */
+  <script id="tpl-notifications" type="text/template">
+    <div class="panel card">
+      <h3>Notifications</h3>
+      <div id="notifications-list"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="clear-notifications" class="btn">Clear</button>
+      </div>
+    </div>
+  </script>
 
-const STORAGE_USERS = 'nammo_users_v1';
-const STORAGE_PRODUCTS = 'nammo_products_v1';
-const STORAGE_SALES = 'nammo_sales_v1';
-const SESSION_KEY = 'nammo_session_v1';
+  <script>
+  // Simple SPA renderer + functionality
+  (function(){
+    const app = document.getElementById('app');
+    const T = tId => document.getElementById(tId).innerHTML;
+    const templates = {};
+    document.querySelectorAll('script[type="text/template"]').forEach(s=>templates[s.id]=s.innerHTML);
 
-// init helpers
-function nowIso(){ return new Date().toISOString(); }
-function todayDateISO(){ return new Date().toISOString().slice(0,10); }
-function load(key){ try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){return []}}
-function save(key,data){ localStorage.setItem(key, JSON.stringify(data)); }
-function saveObj(key,obj){ localStorage.setItem(key, JSON.stringify(obj)); }
-function readObj(key){ try{return JSON.parse(localStorage.getItem(key));}catch(e){return null} }
-function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
-function b64(s){ return btoa(s); }
-function unb64(s){ try{return atob(s);}catch(e){return s} }
-function formatMoney(n){ return '₹' + Number(n).toFixed(2); }
+    const state = {
+      user: {name:'Admin',email:'admin@nammo',role:'admin'},
+      products: JSON.parse(localStorage.getItem('nb_products')||'[]'),
+      users: JSON.parse(localStorage.getItem('nb_users')||'[]'),
+      sales: JSON.parse(localStorage.getItem('nb_sales')||'[]'),
+      notifications: JSON.parse(localStorage.getItem('nb_notifs')||'[]'),
+      settings: JSON.parse(localStorage.getItem('nb_settings')||JSON.stringify({adminEmail:'admin@nammo',adminPass:'admin123',customerFields:{phone:true,email:true,location:true,activeDays:30},business:{location:'',city:'',state:'',pincode:''}}))
+    };
 
-// initial seed: create default admin if none exist
-let users = load(STORAGE_USERS);
-if(users.length===0){
-  const admin = { id: uid(), first:'Admin', last:'User', phone:'', email:'admin@nammo.local', pass:b64('admin123'), role:'admin', expiry: '2099-12-31', created: nowIso() };
-  users.push(admin); save(STORAGE_USERS, users);
-}
-
-// products and sales
-let products = load(STORAGE_PRODUCTS);
-let sales = load(STORAGE_SALES);
-
-// session
-let session = readObj(SESSION_KEY) || null;
-
-// UI refs
-const who = document.getElementById('who');
-const btnShowLogin = document.getElementById('btnShowLogin');
-const btnLogin = document.getElementById('btnLogin');
-const btnSignup = document.getElementById('btnSignup');
-const signOutBtn = document.getElementById('signOut');
-const viewDashboard = document.getElementById('viewDashboard');
-const viewProducts = document.getElementById('viewProducts');
-const viewBilling = document.getElementById('viewBilling');
-const viewUsers = document.getElementById('viewUsers');
-const goProducts = document.getElementById('goProducts');
-const goBilling = document.getElementById('goBilling');
-const goUsers = document.getElementById('goUsers');
-const productTable = document.querySelector('#productTable tbody');
-const usersTable = document.querySelector('#usersTable tbody');
-const invSummary = document.getElementById('invSummary');
-const adminActions = document.getElementById('adminActions');
-const accountBox = document.getElementById('accountBox');
-
-// simple navigation
-function show(view){
-  [viewDashboard, viewProducts, viewBilling, viewUsers].forEach(v=>v.classList.add('hidden'));
-  view.classList.remove('hidden');
-}
-show(viewDashboard);
-
-// render top bar / account
-function renderAccount(){
-  users = load(STORAGE_USERS);
-  products = load(STORAGE_PRODUCTS);
-  sales = load(STORAGE_SALES);
-  session = readObj(SESSION_KEY);
-  if(session){
-    who.textContent = session.name + ' • ' + session.role;
-    accountBox.innerHTML = <div class="small">Signed in as <strong>${session.name}</strong> (${session.email})</div>;
-    const adminPanel = session.role === 'admin' ? '' : 'hidden';
-    adminActions.classList.toggle('hidden', session.role !== 'admin');
-  } else {
-    who.textContent = 'Not signed in';
-    accountBox.innerHTML = `<div class="muted small">No active session</div>
-      <div style="margin-top:8px"><button class="btn" id="btnLogin2">Login</button>
-      <button class="btn ghost" id="btnSignup2">Signup</button></div>`;
-    document.getElementById('btnLogin2').addEventListener('click', ()=>openAuth('login'));
-    document.getElementById('btnSignup2').addEventListener('click', ()=>openAuth('signup'));
-  }
-  refreshInventorySummary();
-}
-renderAccount();
-
-// AUTH / modal simple prompts
-function openAuth(mode){
-  if(mode==='login'){
-    const email = prompt('Email (login):');
-    const pass = prompt('Password:');
-    if(!email || !pass) return alert('Cancelled');
-    const u = users.find(x=>x.email.toLowerCase()===email.toLowerCase());
-    if(!u) return alert('No user found');
-    // expiry check
-    if(u.expiry && u.expiry !== '' && u.expiry < todayDateISO()){
-      return alert('Account expired. Contact admin.');
+    function saveState(){
+      localStorage.setItem('nb_products',JSON.stringify(state.products));
+      localStorage.setItem('nb_users',JSON.stringify(state.users));
+      localStorage.setItem('nb_sales',JSON.stringify(state.sales));
+      localStorage.setItem('nb_notifs',JSON.stringify(state.notifications));
+      localStorage.setItem('nb_settings',JSON.stringify(state.settings));
     }
-    if(unb64(u.pass) !== pass) return alert('Wrong password');
-    session = { id:u.id, name: u.first + ' ' + u.last, email:u.email, role:u.role };
-    saveObj(SESSION_KEY, session);
-    renderAccount();
-    alert('Signed in');
-  } else {
-    // signup flow
-    const first = prompt('First name:') || '';
-    const last = prompt('Last name:') || '';
-    const phone = prompt('Phone:') || '';
-    const email = prompt('Email:');
-    const pass = prompt('Password (min 4 chars):');
-    if(!email || !pass) return alert('Cancelled');
-    // if first user (no users) make admin - already seeded; but allow admin creation only by admin via UI
-    if(users.find(x=>x.email.toLowerCase()===email.toLowerCase())) return alert('Email exists');
-    // default expiry 2099 if admin creates; else 1 year
-    const expiry = new Date(); expiry.setFullYear(expiry.getFullYear() + 1);
-    const u = { id: uid(), first, last, phone, email, pass: b64(pass), role:'staff', expiry: expiry.toISOString().slice(0,10), created: nowIso() };
-    users.push(u); save(STORAGE_USERS, users);
-    alert('Signup success. Ask admin to promote to admin if needed.');
-  }
-}
 
-// top nav buttons
-btnShowLogin.addEventListener('click', ()=> openAuth('login'));
-btnLogin.addEventListener('click', ()=> openAuth('login'));
-btnSignup.addEventListener('click', ()=> openAuth('signup'));
-signOutBtn.addEventListener('click', ()=> { localStorage.removeItem(SESSION_KEY); session=null; renderAccount(); alert('Signed out'); });
+    function render(templateId, data){
+      let html = templates[templateId] || '';
+      Object.keys(data||{}).forEach(k=>{html = html.replace(new RegExp('{{'+k+'}}','g'), data[k]);});
+      app.innerHTML = html;
+      attachNav();
+    }
 
-// navigation
-goProducts.addEventListener('click', ()=> { show(viewProducts); renderProducts(); });
-goBilling.addEventListener('click', ()=> { show(viewBilling); renderProducts(); renderCart(); });
-goUsers.addEventListener('click', ()=> { show(viewUsers); renderUsers(); });
+    function attachNav(){
+      // render nav into top of app area
+      const navHtml = templates['tpl-nav'].replace(/{{userName}}/g,state.user.name).replace(/{{role}}/g,state.user.role);
+      app.insertAdjacentHTML('afterbegin',navHtml);
+      document.getElementById('btn-logout').addEventListener('click',()=>{render('tpl-login',{});});
+      document.getElementById('btn-settings').addEventListener('click',()=>openSettings());
+      document.getElementById('btn-notifications').addEventListener('click',()=>openNotifications());
+      updateNotifCount();
+    }
 
-// PRODUCTS
-function renderProducts(){
-  products = load(STORAGE_PRODUCTS);
-  productTable.innerHTML = '';
-  products.forEach(p=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${escapeHtml(p.name)}</td><td>${formatMoney(p.price)}</td><td>${p.qty}</td><td>${escapeHtml(p.barcode||'')}</td>
-      <td><button class="btn ghost" data-id="${p.id}" data-act="edit">Edit</button> <button class="danger" data-id="${p.id}" data-act="del">Delete</button></td>`;
-    productTable.appendChild(tr);
-  });
-  // wire
-  [...productTable.querySelectorAll('button')].forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      const id = e.target.getAttribute('data-id');
-      const act = e.target.getAttribute('data-act');
-      if(act==='edit'){ const p = products.find(x=>x.id===id); if(p){document.getElementById('p_name').value=p.name;document.getElementById('p_price').value=p.price;document.getElementById('p_qty').value=p.qty;document.getElementById('p_barcode').value=p.barcode||'';} show(viewProducts); }
-      if(act==='del'){ if(!confirm('Delete product?')) return; products = products.filter(x=>x.id!==id); save(STORAGE_PRODUCTS, products); renderProducts(); refreshInventorySummary(); }
+    function updateNotifCount(){
+      const el = document.getElementById('notif-count'); if(el) el.textContent = state.notifications.length||0;
+    }
+
+    // initial show
+    render('tpl-login',{});
+
+    // login handlers
+    document.addEventListener('submit',function(e){
+      if(e.target && e.target.id==='form-login'){
+        e.preventDefault();
+        const email = document.getElementById('login-email').value.trim();
+        const pass = document.getElementById('login-password').value.trim();
+        const s = state.settings;
+        if(email===s.adminEmail && pass===s.adminPass){
+          state.user.name = 'Admin'; state.user.email = email; state.user.role='admin';
+          saveState();
+          render('tpl-dashboard',{});
+          attachDashboard();
+          pushNotif('Admin logged in');
+        } else {
+          alert('Invalid credentials');
+        }
+      }
     });
-  });
-}
 
-document.getElementById('addProduct').addEventListener('click', ()=>{
-  if(!session || session.role!=='admin') return alert('Only admin can add or update products');
-  const name = document.getElementById('p_name').value.trim();
-  const price = Number(document.getElementById('p_price').value) || 0;
-  const qty = Number(document.getElementById('p_qty').value) || 0;
-  const barcode = document.getElementById('p_barcode').value.trim();
-  if(!name) return alert('Name required');
-  // update if exists by name or barcode
-  let p = products.find(x=>x.name.toLowerCase()===name.toLowerCase() || (barcode && x.barcode===barcode));
-  if(p){
-    p.price = price; p.qty = qty; p.barcode = barcode;
-  } else {
-    p = { id: uid(), name, price, qty, barcode, created: nowIso() };
-    products.push(p);
-  }
-  save(STORAGE_PRODUCTS, products); renderProducts(); refreshInventorySummary();
-  alert('Product saved');
-  document.getElementById('p_name').value='';document.getElementById('p_price').value='';document.getElementById('p_qty').value='';document.getElementById('p_barcode').value='';
-});
+    document.addEventListener('click',function(e){
+      if(e.target && e.target.id==='go-signup'){
+        alert('Signup not implemented in demo');
+      }
+    });
 
-document.getElementById('clearProducts').addEventListener('click', ()=>{
-  if(!session || session.role!=='admin') return alert('Only admin');
-  if(!confirm('Clear ALL products? This cannot be undone.')) return;
-  products = []; save(STORAGE_PRODUCTS, products); renderProducts(); refreshInventorySummary();
-});
+    function pushNotif(text){
+      state.notifications.unshift({text,when:new Date().toISOString()}); if(state.notifications.length>50) state.notifications.pop(); saveState(); updateNotifCount();
+    }
 
-// CSV import
-document.getElementById('importCSV').addEventListener('click', ()=>{
-  if(!session || session.role!=='admin') return alert('Only admin can import CSV');
-  const f = document.getElementById('csvFile').files[0];
-  if(!f) return alert('Choose a CSV file');
-  const reader = new FileReader();
-  reader.onload = e=>{
-    const text = e.target.result;
-    importProductsFromCSV(text);
-  };
-  reader.readAsText(f);
-});
-function importProductsFromCSV(text){
-  // simple parser: split lines, comma separated
-  const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  lines.forEach((ln,i)=>{
-    const cols = ln.split(',');
-    // allow header detection (if contains 'name' or 'price' words)
-    if(i===0 && /name/i.test(cols[0]) && /price/i.test(cols[1])) return;
-    const name = (cols[0]||'').trim();
-    const price = Number((cols[1]||'0').trim())||0;
-    const qty = Number((cols[2]||'0').trim())||0;
-    const barcode = (cols[3]||'').trim();
-    if(!name) return;
-    let p = products.find(x=>x.name.toLowerCase()===name.toLowerCase() || (barcode && x.barcode===barcode));
-    if(p){ p.price = price; p.qty = qty; p.barcode = barcode; }
-    else { products.push({ id: uid(), name, price, qty, barcode, created: nowIso() }); }
-  });
-  save(STORAGE_PRODUCTS, products); renderProducts(); refreshInventorySummary(); alert('CSV imported');
-}
+    function attachDashboard(){
+      // left action buttons
+      document.getElementById('open-billing').addEventListener('click',()=>openBilling());
+      document.getElementById('open-products').addEventListener('click',()=>openProducts());
+      document.getElementById('open-users').addEventListener('click',()=>openUsers());
+      document.getElementById('open-reports').addEventListener('click',()=>openReports());
 
-// USERS
-function renderUsers(){
-  users = load(STORAGE_USERS);
-  usersTable.innerHTML = '';
-  users.forEach(u=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${escapeHtml(u.first+' '+u.last)}</td><td>${escapeHtml(u.email)}</td><td>${u.role}</td><td>${u.expiry||''}</td>
-      <td>${session && session.role==='admin' ? <button class="btn" data-id="${u.id}" data-act="prom">Promote</button> <button class="btn ghost" data-id="${u.id}" data-act="del">Delete</button> : ''}</td>`;
-    usersTable.appendChild(tr);
-  });
-  [...usersTable.querySelectorAll('button')].forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      const id = e.target.getAttribute('data-id'); const act = e.target.getAttribute('data-act');
-      if(act==='prom'){ if(!confirm('Make this user admin?')) return; const u = users.find(x=>x.id===id); if(u){ u.role='admin'; save(STORAGE_USERS, users); renderUsers(); alert('Promoted');} }
+      document.getElementById('import-csv').addEventListener('click',()=>{document.getElementById('csv-input').click();});
+      document.getElementById('backup-json').addEventListener('click',()=>downloadJSON());
+      document.getElementById('restore-json').addEventListener('click',()=>document.getElementById('restore-file').click());
+      document.getElementById('export-products').addEventListener('click',()=>downloadProducts());
+
+      document.getElementById('restore-file').addEventListener('change',function(ev){
+        const f = ev.target.files[0]; if(!f) return; const reader=new FileReader(); reader.onload = ()=>{try{const obj=JSON.parse(reader.result); if(obj.products) state.products = obj.products; if(obj.users) state.users = obj.users; saveState(); alert('Restored'); pushNotif('Site data restored');}catch(err){alert('Invalid JSON')} }; reader.readAsText(f);
+      });
+    }
+
+    function downloadJSON(){
+      const blob = new Blob([JSON.stringify({products:state.products,users:state.users,sales:state.sales,settings:state.settings},null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='nammo-site-data.json'; a.click(); URL.revokeObjectURL(url);
+    }
+    function downloadProducts(){
+      const blob = new Blob([JSON.stringify(state.products,null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='products.json'; a.click(); URL.revokeObjectURL(url);
+    }
+
+    // Products screen
+    function openProducts(){
+      document.getElementById('right-panel').innerHTML = templates['tpl-products'];
+      const tbody = document.querySelector('#products-table tbody');
+      function refresh(){tbody.innerHTML = state.products.map(p=>`<tr><td>${p.sku}</td><td>${p.name}</td><td>${p.price}</td><td>${p.quantity}</td><td>${p.barcode||''}</td><td><button data-sku="${p.sku}" class="btn edit">Edit</button> <button data-sku="${p.sku}" class="btn del">Del</button></td></tr>`).join('');}
+      refresh();
+      document.getElementById('add-product-btn').addEventListener('click',()=>{document.getElementById('product-form').style.display='block';document.getElementById('product-form-title').textContent='Add Product';document.getElementById('form-product').dataset.edit='';});
+      document.getElementById('cancel-product').addEventListener('click',()=>{document.getElementById('product-form').style.display='none';});
+
+      document.getElementById('form-product').addEventListener('submit',function(e){e.preventDefault();const sku=document.getElementById('p-sku').value.trim();const name=document.getElementById('p-name').value.trim();const price=Number(document.getElementById('p-price').value||0);const qty=Number(document.getElementById('p-qty').value||0);const barcode=document.getElementById('p-barcode').value.trim();
+        const edit = e.target.dataset.edit;
+        if(edit){
+          const idx = state.products.findIndex(x=>x.sku===edit); if(idx>=0){state.products[idx] = {sku,name,price,quantity:qty,barcode};}
+        } else {
+          state.products.push({sku,name,price,quantity:qty,barcode});
+        }
+        saveState(); refresh(); document.getElementById('product-form').style.display='none'; pushNotif('Products updated');
+      });
+
+      tbody.addEventListener('click',function(ev){
+        if(ev.target.classList.contains('del')){ const sku = ev.target.dataset.sku; state.products = state.products.filter(p=>p.sku!==sku); saveState(); refresh(); pushNotif('Product removed: '+sku);} 
+        if(ev.target.classList.contains('edit')){ const sku = ev.target.dataset.sku; const p = state.products.find(x=>x.sku===sku); if(p){document.getElementById('p-sku').value=p.sku;document.getElementById('p-name').value=p.name;document.getElementById('p-price').value=p.price;document.getElementById('p-qty').value=p.quantity;document.getElementById('p-barcode').value=p.barcode;document.getElementById('form-product').dataset.edit=sku;document.getElementById('product-form').style.display='block'; document.getElementById('product-form-title').textContent='Edit Product';}
+        }
+      });
+    }
+
+    // Users screen
+    function openUsers(){
+      document.getElementById('right-panel').innerHTML = templates['tpl-users'];
+      const tbody = document.querySelector('#users-table tbody');
+      function refresh(){tbody.innerHTML = state.users.map(u=>`<tr><td>${u.email}</td><td>${u.first} ${u.last}</td><td>${u.role}</td><td>${u.expiry||''}</td><td><button data-email="${u.email}" class="btn del-user">Del</button></td></tr>`).join('');}
+      refresh();
+      document.getElementById('create-user-btn').addEventListener('click',()=>{document.getElementById('user-form').style.display='block';});
+      document.getElementById('cancel-user').addEventListener('click',()=>{document.getElementById('user-form').style.display='none';});
+      document.getElementById('form-user').addEventListener('submit',function(e){e.preventDefault(); const u={email:document.getElementById('u-email').value.trim(),first:document.getElementById('u-first').value.trim(),last:document.getElementById('u-last').value.trim(),pass:document.getElementById('u-pass').value,role:document.getElementById('u-role').value,expiry:document.getElementById('u-expiry').value}; state.users.push(u); saveState(); refresh(); document.getElementById('user-form').style.display='none'; pushNotif('User created: '+u.email);});
+      tbody.addEventListener('click',function(e){ if(e.target.classList.contains('del-user')){state.users = state.users.filter(x=>x.email!==e.target.dataset.email); saveState(); refresh(); pushNotif('User removed: '+e.target.dataset.email);} });
+    }
+
+    // Billing screen
+    function openBilling(){
+      document.getElementById('right-panel').innerHTML = templates['tpl-billing'];
+      const cart = [];
+      const productsIndex = {};
+      state.products.forEach(p=>productsIndex[p.sku]=p);
+      const tbody = document.querySelector('#cart-table tbody');
+
+      function renderCart(){
+        tbody.innerHTML = cart.map((c,i)=>`<tr><td>${c.sku}</td><td>${c.name}</td><td>${c.price}</td><td><input data-idx="${i}" class="qty" type="number" value="${c.qty}" style="width:60px"/></td><td>${(c.price*c.qty).toFixed(2)}</td><td><button data-idx="${i}" class="btn remove">X</button></td></tr>`).join('');
+        recalc();
+      }
+
+      function recalc(){
+        const subtotal = cart.reduce((s,c)=>s + c.price * c.qty,0);
+        const gstPct = Number(document.getElementById('bill-gst').value||0);
+        const gstAmt = subtotal * gstPct/100;
+        const disc = Number(document.getElementById('bill-discount').value||0);
+        const total = subtotal + gstAmt - disc;
+        document.getElementById('sub-total').textContent = subtotal.toFixed(2);
+        document.getElementById('gst-amt').textContent = gstAmt.toFixed(2);
+        document.getElementById('disc-amt').textContent = disc.toFixed(2);
+        document.getElementById('total-amt').textContent = total.toFixed(2);
+      }
+
+      // add product by search
+      document.getElementById('search-product').addEventListener('keypress',function(e){ if(e.key==='Enter'){ const q = this.value.trim(); const p = state.products.find(x=>x.sku===q || x.name.toLowerCase()===q.toLowerCase() || x.barcode===q); if(p){ const found = cart.find(c=>c.sku===p.sku); if(found) found.qty++; else cart.push({sku:p.sku,name:p.name,price:p.price,qty:1}); renderCart(); } else alert('Product not found');}});
+
+      document.getElementById('cart-table').addEventListener('click',function(e){ if(e.target.classList.contains('remove')){ cart.splice(Number(e.target.dataset.idx),1); renderCart();}});
+      document.getElementById('cart-table').addEventListener('change',function(e){ if(e.target.classList.contains('qty')){ const idx=Number(e.target.dataset.idx); cart[idx].qty = Number(e.target.value||1); renderCart(); }});
+
+      // Apply discount button fixed: recalculates immediately
+      document.getElementById('apply-discount').addEventListener('click',function(){ recalc(); pushNotif('Discount applied: ₹'+document.getElementById('bill-discount').value); });
+
+      document.getElementById('finalise-bill').addEventListener('click',function(){ if(cart.length===0){alert('Cart empty');return;} const sale = {items:cart.slice(),customer:document.getElementById('bill-customer').value,gst:Number(document.getElementById('bill-gst').value||0),discount:Number(document.getElementById('bill-discount').value||0),total:Number(document.getElementById('total-amt').textContent||0),when:new Date().toISOString()}; state.sales.push(sale); saveState(); cart.length=0; renderCart(); pushNotif('Sale completed'); alert('Sale saved'); });
+
+      document.getElementById('clear-cart').addEventListener('click',()=>{ if(confirm('Clear cart?')){ cart.length=0; renderCart(); pushNotif('Cart cleared'); }});
+
+      document.getElementById('print-bill').addEventListener('click',()=>window.print());
+
+      renderCart();
+    }
+
+    // Reports
+    function openReports(){
+      document.getElementById('right-panel').innerHTML = templates['tpl-reports'];
+      const area = document.getElementById('reports-area');
+      const show = (from,to)=>{
+        const list = state.sales.filter(s=>{const d=new Date(s.when); return d>=from && d<=to;});
+        area.innerHTML = `<div>${list.length} sales</div><pre>${JSON.stringify(list,null,2)}</pre>`;
+      };
+      const today = new Date(); today.setHours(0,0,0,0); const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+      document.getElementById('rep-today').addEventListener('click',()=>{ show(today,new Date(tomorrow-1)); toggleTab('rep-today');});
+      document.getElementById('rep-yesterday').addEventListener('click',()=>{ const yd = new Date(today); yd.setDate(today.getDate()-1); const ye = new Date(today); ye.setMilliseconds(-1); show(yd,ye); toggleTab('rep-yesterday');});
+      document.getElementById('rep-custom').addEventListener('click',()=>{ document.getElementById('custom-range').classList.toggle('hidden'); toggleTab('rep-custom');});
+      document.getElementById('filter-range').addEventListener('click',()=>{ const f=new Date(document.getElementById('from-date').value); const t=new Date(document.getElementById('to-date').value); if(!f||!t) return alert('Pick dates'); t.setHours(23,59,59,999); show(f,t);});
+      document.getElementById('export-sales').addEventListener('click',()=>{ const blob=new Blob([JSON.stringify(state.sales,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='sales.json'; a.click(); URL.revokeObjectURL(a.href);});
+
+      function toggleTab(id){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.getElementById(id).classList.add('active');}
+    }
+
+    // Settings
+    function openSettings(){ document.getElementById('right-panel').innerHTML = templates['tpl-settings'];
+      // populate
+      document.getElementById('admin-email').value = state.settings.adminEmail || '';
+      document.getElementById('admin-pass').value = state.settings.adminPass || '';
+      document.getElementById('c-phone').checked = state.settings.customerFields.phone;
+      document.getElementById('c-email').checked = state.settings.customerFields.email;
+      document.getElementById('c-location').checked = state.settings.customerFields.location;
+      document.getElementById('c-active-days').value = state.settings.customerFields.activeDays;
+      document.getElementById('b-location').value = state.settings.business.location||'';
+      document.getElementById('b-city').value = state.settings.business.city||'';
+      document.getElementById('b-state').value = state.settings.business.state||'';
+      document.getElementById('b-pincode').value = state.settings.business.pincode||'';
+
+      document.querySelectorAll('[data-tab]').forEach(tab=>tab.addEventListener('click',function(){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); const tname=this.dataset.tab; document.getElementById('settings-login').classList.toggle('hidden', tname!=='login'); document.getElementById('settings-customers').classList.toggle('hidden', tname!=='customers'); document.getElementById('settings-business').classList.toggle('hidden', tname!=='business'); }));
+
+      document.getElementById('save-login').addEventListener('click',()=>{ state.settings.adminEmail = document.getElementById('admin-email').value.trim(); state.settings.adminPass = document.getElementById('admin-pass').value; saveState(); pushNotif('Admin login saved'); alert('Saved'); });
+      document.getElementById('reset-login').addEventListener('click',()=>{ document.getElementById('admin-email').value='admin@nammo'; document.getElementById('admin-pass').value='admin123'; state.settings.adminEmail='admin@nammo'; state.settings.adminPass='admin123'; saveState(); pushNotif('Admin reset to default'); alert('Reset to default'); });
+      document.getElementById('forget-login').addEventListener('click',()=>{ if(confirm('Forget stored admin credentials?')){ state.settings.adminEmail=''; state.settings.adminPass=''; document.getElementById('admin-email').value=''; document.getElementById('admin-pass').value=''; saveState(); pushNotif('Admin credentials forgotten'); alert('Cleared'); }});
+
+      document.getElementById('save-customer-settings').addEventListener('click',()=>{ state.settings.customerFields.phone = document.getElementById('c-phone').checked; state.settings.customerFields.email = document.getElementById('c-email').checked; state.settings.customerFields.location = document.getElementById('c-location').checked; state.settings.customerFields.activeDays = Number(document.getElementById('c-active-days').value||30); saveState(); pushNotif('Customer settings saved'); alert('Saved'); });
+
+      document.getElementById('save-business').addEventListener('click',()=>{ state.settings.business.location = document.getElementById('b-location').value; state.settings.business.city = document.getElementById('b-city').value; state.settings.business.state = document.getElementById('b-state').value; state.settings.business.pincode = document.getElementById('b-pincode').value; saveState(); pushNotif('Business location saved'); alert('Saved'); });
+    }
+
+    // Notifications
+    function openNotifications(){ document.getElementById('right-panel').innerHTML = templates['tpl-notifications']; const list = document.getElementById('notifications-list'); function render(){ list.innerHTML = state.notifications.map(n=>`<div style="padding:8px;border-bottom:1px solid #eef">${new Date(n.when).toLocaleString()} - ${n.text}</div>`).join('') || '<div class="muted">No notifications</div>'; }
+      render(); document.getElementById('clear-notifications').addEventListener('click',()=>{ if(confirm('Clear notifications?')){ state.notifications=[]; saveState(); render(); updateNotifCount(); }});
+    }
+
+    // Expose some quick functions for first dashboard after login
+    window.openBilling = openBilling; window.openProducts = openProducts; window.openUsers = openUsers; window.openReports = openReports; window.openSettings = openSettings; window.openNotifications = openNotifications;
+
+  })();
+  </script>
+</body>
+</html>
