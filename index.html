@@ -57,7 +57,7 @@
           <button class="btn primary" type="submit">Login</button>
           <button id="go-signup" type="button" class="btn">Signup</button>
         </div>
-        <p class="muted">Default admin: <b>admin@karthick</b> / <b>admin123</b></p>
+        <p class="muted">Default admin: <b>admin@nammo</b> / <b>admin123</b></p>
       </form>
     </div>
   </script>
@@ -421,15 +421,16 @@
 
     function handleCSVUpload(ev){
       const f = ev.target.files[0]; if(!f) return alert('No file'); const reader = new FileReader(); reader.onload = ()=>{
-        const txt = reader.result.trim(); if(!txt) return alert('Empty file');
+        const txt = String(reader.result || '').trim(); if(!txt) return alert('Empty file');
         // simple CSV parse (no quotes handling) — expects header row
         const lines = txt.split(/
 ?
-/).filter(l=>l.trim()); const headers = lines.shift().split(',').map(h=>h.trim().toLowerCase());
+/).filter(l=>l.trim());
+        const headers = lines.shift().split(',').map(h=>h.trim().toLowerCase());
         const idx = {sku:headers.indexOf('sku'), name:headers.indexOf('name'), price:headers.indexOf('price'), quantity:headers.indexOf('quantity'), barcode:headers.indexOf('barcode')};
         if(idx.sku<0 || idx.name<0){ return alert('CSV must include sku and name columns'); }
         const added = [];
-        lines.forEach(l=>{ const cols = l.split(','); const p = {sku:cols[idx.sku]?.trim(), name:cols[idx.name]?.trim(), price: Number(cols[idx.price]||0), quantity: Number(cols[idx.quantity]||0), barcode: cols[idx.barcode]?.trim()}; if(p.sku && p.name){ // replace if exists
+        lines.forEach(l=>{ const cols = l.split(','); const p = {sku:(cols[idx.sku]||'').trim(), name:(cols[idx.name]||'').trim(), price: Number(cols[idx.price]||0), quantity: Number(cols[idx.quantity]||0), barcode: (cols[idx.barcode]||'').trim()}; if(p.sku && p.name){ // replace if exists
             const existing = state.products.find(x=>x.sku===p.sku);
             if(existing) Object.assign(existing,p); else state.products.push(p); added.push(p.sku);
         }});
