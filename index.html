@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bill 24*7(Updated)</title>
+  <title>Nammo Billing — Full Rewrite</title>
   <style>
     :root{--accent:#2b7aeb;--muted:#777;--card:#fff;--bg:#f3f6fb}
     html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial;background:var(--bg);color:#222}
@@ -28,23 +28,32 @@
     .tab{padding:8px 10px;border:1px solid #dfe6f3;border-radius:6px;cursor:pointer}
     .tab.active{background:var(--accent);color:#fff;border-color:transparent}
     .hidden{display:none}
+    .banner{background:#fff4e5;border:1px solid #ffd1a8;padding:10px;margin:8px;border-radius:6px}
+    pre{white-space:pre-wrap;word-break:break-word}
     .badge{padding:3px 6px;border-radius:20px;background:#f0f4ff;font-size:12px}
+    .debug{font-size:12px;color:#333;background:#f7f9fc;padding:8px;border-radius:6px}
   </style>
 </head>
 <body>
   <div id="app"></div>
 
   <!-- Templates -->
-  <script id="tpl-nav" type="text/template">
-    <header class="nav">
-      <div class="brand">Bill 24*7</div>
-      <div class="nav-right">
-        <button id="btn-notifications" class="btn">Notifications <span id="notif-count" class="badge">0</span></button>
-        <button id="btn-settings" class="btn">Settings</button>
-        <span class="small">User: <b>{{userName}}</b> ({{role}})</span>
-        <button id="btn-logout" class="btn">Logout</button>
-      </div>
-    </header>
+  <script id="tpl-shell" type="text/template">
+    <div id="app-shell">
+      <div id="top-banner" class="hidden"></div>
+      <header class="nav">
+        <div class="brand">Nammo Billing</div>
+        <div class="nav-right">
+          <button id="btn-notifications" class="btn">Notifications <span id="notif-count" class="badge">0</span></button>
+          <button id="btn-settings" class="btn">Settings</button>
+          <span class="small">User: <b id="nav-username">{{userName}}</b> ( <span id="nav-role">{{role}}</span> )</span>
+          <button id="btn-logout" class="btn">Logout</button>
+        </div>
+      </header>
+
+      <div id="content"></div>
+      <footer>Software Owned by - <b>Karthick Subramanian</b></footer>
+    </div>
   </script>
 
   <script id="tpl-login" type="text/template">
@@ -109,13 +118,14 @@
         </div>
 
         <div class="panel card">
-          <h4>Footer</h4>
-          <div class="muted">Software Owned by - <b>Karthick Subramanian</b></div>
+          <h4>Debug</h4>
+          <button id="open-storage-debug" class="btn">View LocalStorage</button>
+          <button id="clear-localstorage" class="btn">Clear LocalStorage</button>
         </div>
+
       </div>
 
-      <div class="right" id="right-panel">
-      </div>
+      <div class="right" id="right-panel"></div>
     </div>
   </script>
 
@@ -311,160 +321,132 @@
   </script>
 
   <script>
+  /* Nammo Billing - Robust single-file app
+     Features/fixes applied:
+     - Clear shell + content separation to avoid blank page
+     - Template existence checks and error banner
+     - Robust localStorage parse with try/catch
+     - CSV import fixed (no broken regex)
+     - Storage debug tools in Dashboard
+     - Persistence (localStorage) preserved across sessions for the correct origin
+     - Notifications for actions
+  */
   (function(){
     const app = document.getElementById('app');
     const templates = {};
     document.querySelectorAll('script[type="text/template"]').forEach(s=>templates[s.id]=s.innerHTML);
 
+    // Helpers for safe parse/stringify
+    function safeParse(key, fallback){ try{ const v = localStorage.getItem(key); if(!v) return fallback; return JSON.parse(v); } catch(e){ console.warn('parse error',key,e); return fallback; } }
+    function safeSet(key,val){ try{ localStorage.setItem(key,JSON.stringify(val)); } catch(e){ console.warn('set error',key,e); } }
+
     const state = {
       user: {name:'Guest',email:'',role:'guest'},
-      products: JSON.parse(localStorage.getItem('nb_products')||'[]'),
-      users: JSON.parse(localStorage.getItem('nb_users')||'[]'),
-      customers: JSON.parse(localStorage.getItem('nb_customers')||'[]'),
-      sales: JSON.parse(localStorage.getItem('nb_sales')||'[]'),
-      notifications: JSON.parse(localStorage.getItem('nb_notifs')||'[]'),
-      settings: JSON.parse(localStorage.getItem('nb_settings')||JSON.stringify({adminEmail:'admin@nammo',adminPass:'admin123',customerFields:{phone:true,email:true,location:true,activeDays:30},business:{location:'',city:'',state:'',pincode:''}}))
+      products: safeParse('nb_products',[]),
+      users: safeParse('nb_users',[]),
+      customers: safeParse('nb_customers',[]),
+      sales: safeParse('nb_sales',[]),
+      notifications: safeParse('nb_notifs',[]),
+      settings: safeParse('nb_settings',{adminEmail:'admin@nammo',adminPass:'admin123',customerFields:{phone:true,email:true,location:true,activeDays:30},business:{location:'',city:'',state:'',pincode:''}})
     };
 
-    function saveState(){
-      localStorage.setItem('nb_products',JSON.stringify(state.products));
-      localStorage.setItem('nb_users',JSON.stringify(state.users));
-      localStorage.setItem('nb_customers',JSON.stringify(state.customers));
-      localStorage.setItem('nb_sales',JSON.stringify(state.sales));
-      localStorage.setItem('nb_notifs',JSON.stringify(state.notifications));
-      localStorage.setItem('nb_settings',JSON.stringify(state.settings));
-    }
+    function saveState(){ safeSet('nb_products',state.products); safeSet('nb_users',state.users); safeSet('nb_customers',state.customers); safeSet('nb_sales',state.sales); safeSet('nb_notifs',state.notifications); safeSet('nb_settings',state.settings); }
 
-    function render(templateId, data){
-      let html = templates[templateId] || '';
-      Object.keys(data||{}).forEach(k=>{html = html.replace(new RegExp('{{'+k+'}}','g'), data[k]);});
-      app.innerHTML = html;
-      attachNav();
-    }
-
-    function attachNav(){
-      const navHtml = templates['tpl-nav'].replace(/{{userName}}/g,state.user.name||'Guest').replace(/{{role}}/g,state.user.role||'guest');
-      app.insertAdjacentHTML('afterbegin',navHtml);
-      document.getElementById('btn-logout').addEventListener('click',()=>{ state.user={name:'Guest',email:'',role:'guest'}; render('tpl-login',{}); });
-      document.getElementById('btn-settings').addEventListener('click',()=>openSettings());
-      document.getElementById('btn-notifications').addEventListener('click',()=>openNotifications());
+    // Shell render ensures nav always present even if content templates fail
+    function renderShell(){
+      app.innerHTML = templates['tpl-shell'] ? templates['tpl-shell'] : ('<div class="banner">Templates missing</div>');
+      document.getElementById('nav-username').textContent = state.user.name||'Guest';
+      document.getElementById('nav-role').textContent = state.user.role||'guest';
+      // Attach nav buttons
+      const logoutBtn = document.getElementById('btn-logout'); if(logoutBtn) logoutBtn.addEventListener('click',()=>{ logout(); renderLogin(); });
+      const settingsBtn = document.getElementById('btn-settings'); if(settingsBtn) settingsBtn.addEventListener('click',()=>openSettings());
+      const notifBtn = document.getElementById('btn-notifications'); if(notifBtn) notifBtn.addEventListener('click',()=>openNotifications());
       updateNotifCount();
     }
 
+    function showBanner(msg){ const b = document.getElementById('top-banner'); if(b){ b.classList.remove('hidden'); b.innerHTML = `<div class="banner">${msg}</div>`; } }
+    function hideBanner(){ const b = document.getElementById('top-banner'); if(b){ b.classList.add('hidden'); b.innerHTML=''; } }
+
+    // Validate URL host duplication (common user error)
+    function checkUrlIssues(){ const path = window.location.pathname || ''; const host = window.location.host || ''; if(path.includes(host)){ showBanner(`Warning: Your URL path contains the host name. Correct GitHub Pages URL should be either "https://${host}/" or "https://${window.location.hostname}/${getRepoName()}". Current path: ${path}`); } }
+    function getRepoName(){ const p = window.location.pathname || ''; const parts = p.split('/').filter(Boolean); return parts.length>0 ? parts[0] : ''; }
+
+    // initial mount
+    renderShell(); checkUrlIssues();
+
+    // Basic UI renderers
+    function renderLogin(){ renderShell(); const content = document.getElementById('content'); if(!templates['tpl-login']) return showBanner('Login template missing'); content.innerHTML = templates['tpl-login']; attachLoginHandlers(); }
+    function renderSignup(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-signup']; attachSignupHandlers(); }
+    function renderDashboard(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-dashboard']; attachDashboard(); }
+
+    // Attach handlers
+    function attachLoginHandlers(){ const form = document.getElementById('form-login'); if(!form) return; form.addEventListener('submit',function(e){ e.preventDefault(); const email = document.getElementById('login-email').value.trim(); const pass = document.getElementById('login-password').value.trim(); const s = state.settings; if(email===s.adminEmail && pass===s.adminPass){ state.user={name:'Admin',email:email,role:'admin'}; saveState(); renderDashboard(); pushNotif('Admin logged in'); return; } const u = state.users.find(x=>x.email===email && x.pass===pass); if(u){ state.user={name: (u.first||u.name||u.email), email:u.email, role:u.role||'staff'}; saveState(); renderDashboard(); pushNotif('User logged in: '+u.email); return; } alert('Invalid credentials'); }); document.getElementById('go-signup').addEventListener('click',renderSignup); }
+
+    function attachSignupHandlers(){ const form = document.getElementById('form-signup'); if(!form) return; form.addEventListener('submit',function(e){ e.preventDefault(); const name = document.getElementById('su-name').value.trim(); const business = document.getElementById('su-business').value.trim(); const phone = document.getElementById('su-phone').value.trim(); const email = document.getElementById('su-email').value.trim(); const pass = document.getElementById('su-pass').value; if(state.users.find(x=>x.email===email)) return alert('Email already registered'); state.users.push({email,first:name,last:business,phone,pass,role:'staff'}); saveState(); alert('Account created. Please login.'); renderLogin(); }); document.getElementById('back-login').addEventListener('click',renderLogin); }
+
+    function attachDashboard(){ // wire dashboard buttons
+      const right = document.getElementById('right-panel'); if(!right) return;
+      try{
+        document.getElementById('open-billing').addEventListener('click',openBilling);
+        document.getElementById('open-products').addEventListener('click',openProducts);
+        document.getElementById('open-users').addEventListener('click',openUsers);
+        document.getElementById('open-customers').addEventListener('click',openCustomers);
+        document.getElementById('open-reports').addEventListener('click',openReports);
+        document.getElementById('import-csv').addEventListener('click',()=>document.getElementById('csv-input').click());
+        document.getElementById('csv-input').addEventListener('change',handleCSVUpload);
+        document.getElementById('backup-json').addEventListener('click',downloadJSON);
+        document.getElementById('restore-json').addEventListener('click',()=>document.getElementById('restore-file').click());
+        document.getElementById('restore-file').addEventListener('change',handleRestoreFile);
+        document.getElementById('export-products').addEventListener('click',downloadProducts);
+        document.getElementById('open-storage-debug').addEventListener('click',openStorageDebug);
+        document.getElementById('clear-localstorage').addEventListener('click',()=>{ if(confirm('Clear localStorage?')){ localStorage.clear(); location.reload(); } });
+      }catch(e){ console.warn('dashboard attach error',e); }
+      openProducts();
+    }
+
+    // Storage debug
+    function openStorageDebug(){ renderShell(); const content = document.getElementById('content'); const keys = Object.keys(localStorage).sort(); content.innerHTML = `<div class="card"><h3>LocalStorage Debug</h3><div class="debug"><strong>Origin:</strong> ${location.origin}<br/><strong>Path:</strong> ${location.pathname}<br/><strong>Keys:</strong> ${keys.join(', ') || '(none)'}<hr/></div><pre>${keys.map(k=>k+": "+localStorage.getItem(k)).join('\n\n')}</pre></div>`; }
+
+    function handleRestoreFile(ev){ const f = ev.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = ()=>{ try{ const obj = JSON.parse(String(reader.result||'')); if(obj.products) state.products = obj.products; if(obj.users) state.users = obj.users; if(obj.customers) state.customers = obj.customers; if(obj.sales) state.sales = obj.sales; if(obj.settings) state.settings = obj.settings; saveState(); alert('Restored site data from file'); pushNotif('Site data restored'); openProducts(); } catch(err){ alert('Invalid JSON file'); } }; reader.readAsText(f); }
+
+    function downloadJSON(){ const blob = new Blob([JSON.stringify({products:state.products,users:state.users,customers:state.customers,sales:state.sales,settings:state.settings},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='nammo-site-data.json'; a.click(); URL.revokeObjectURL(a.href); }
+    function downloadProducts(){ const blob = new Blob([JSON.stringify(state.products,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='products.json'; a.click(); URL.revokeObjectURL(a.href); }
+
+    // CSV import (robust)
+    function handleCSVUpload(ev){ const f = ev.target.files[0]; if(!f) return alert('No file selected'); const reader = new FileReader(); reader.onload = ()=>{ try{ const txt = String(reader.result||'').trim(); if(!txt) return alert('Empty file'); const lines = txt.split(/\r?\n/).filter(l=>l.trim()); const headers = lines.shift().split(',').map(h=>h.trim().toLowerCase()); const idx = {sku:headers.indexOf('sku'), name:headers.indexOf('name'), price:headers.indexOf('price'), quantity:headers.indexOf('quantity'), barcode:headers.indexOf('barcode')}; if(idx.sku<0 || idx.name<0) return alert('CSV must include sku and name columns'); const added = []; lines.forEach(l=>{ const cols = l.split(','); const p = {sku:(cols[idx.sku]||'').trim(), name:(cols[idx.name]||'').trim(), price: Number(cols[idx.price]||0), quantity: Number(cols[idx.quantity]||0), barcode:(cols[idx.barcode]||'').trim()}; if(p.sku && p.name){ const existing = state.products.find(x=>x.sku===p.sku); if(existing) Object.assign(existing,p); else state.products.push(p); added.push(p.sku); } }); saveState(); pushNotif('CSV import: '+added.length+' products'); alert('Imported '+added.length+' products'); openProducts(); } catch(err){ alert('CSV parse failed'); console.error(err); } }; reader.readAsText(f); }
+
+    function pushNotif(text){ state.notifications.unshift({text,when:new Date().toISOString()}); if(state.notifications.length>200) state.notifications.length=200; saveState(); updateNotifCount(); }
     function updateNotifCount(){ const el = document.getElementById('notif-count'); if(el) el.textContent = state.notifications.length||0; }
 
-    render('tpl-login',{});
-
-    // Login handler: checks admin credentials or registered users
-    document.addEventListener('submit',function(e){
-      if(e.target && e.target.id==='form-login'){
-        e.preventDefault();
-        const email = document.getElementById('login-email').value.trim();
-        const pass = document.getElementById('login-password').value.trim();
-        const s = state.settings;
-        // check admin first
-        if(email===s.adminEmail && pass===s.adminPass){
-          state.user.name='Admin'; state.user.email=email; state.user.role='admin'; saveState(); render('tpl-dashboard',{}); attachDashboard(); pushNotif('Admin logged in'); return;
-        }
-        // check registered users
-        const u = state.users.find(x=>x.email===email && x.pass===pass);
-        if(u){ state.user.name = (u.first? u.first+' '+(u.last||'') : (u.name||'User')); state.user.email = u.email; state.user.role = u.role || 'staff'; saveState(); render('tpl-dashboard',{}); attachDashboard(); pushNotif('User logged in: '+u.email); return; }
-        alert('Invalid credentials');
-      }
-      if(e.target && e.target.id==='form-signup'){
-        e.preventDefault();
-        const name = document.getElementById('su-name').value.trim();
-        const business = document.getElementById('su-business').value.trim();
-        const phone = document.getElementById('su-phone').value.trim();
-        const email = document.getElementById('su-email').value.trim();
-        const pass = document.getElementById('su-pass').value;
-        if(state.users.find(x=>x.email===email)){ return alert('Email already registered'); }
-        const user = {email,first:name,last:business,pass,role:'staff'};
-        state.users.push(user); saveState(); alert('Account created. Please login.'); render('tpl-login',{});
-      }
-      if(e.target && e.target.id==='form-product'){
-        // handled in product screen
-      }
-      if(e.target && e.target.id==='form-customer'){
-        e.preventDefault(); const name=document.getElementById('c-name').value.trim(); const phone=document.getElementById('c-phone').value.trim(); const email=document.getElementById('c-email').value.trim(); const loc=document.getElementById('c-location').value.trim();
-        const existing = state.customers.find(c=>c.email===email && email);
-        if(existing){ existing.name=name; existing.phone=phone; existing.location=loc; } else { state.customers.push({name,phone,email,location:loc,created:new Date().toISOString()}); }
-        saveState(); alert('Customer saved'); pushNotif('Customer saved: '+name); openCustomers();
-      }
-    });
-
-    document.addEventListener('click',function(e){
-      if(e.target && e.target.id==='go-signup'){ render('tpl-signup',{}); }
-      if(e.target && e.target.id==='back-login'){ render('tpl-login',{}); }
-    });
-
-    function pushNotif(text){ state.notifications.unshift({text,when:new Date().toISOString()}); if(state.notifications.length>50) state.notifications.pop(); saveState(); updateNotifCount(); }
-
-    function attachDashboard(){
-      document.getElementById('open-billing').addEventListener('click',()=>openBilling());
-      document.getElementById('open-products').addEventListener('click',()=>openProducts());
-      document.getElementById('open-users').addEventListener('click',()=>openUsers());
-      document.getElementById('open-customers').addEventListener('click',()=>openCustomers());
-      document.getElementById('open-reports').addEventListener('click',()=>openReports());
-
-      document.getElementById('import-csv').addEventListener('click',()=>{ document.getElementById('csv-input').click(); });
-      document.getElementById('csv-input').addEventListener('change',handleCSVUpload);
-
-      document.getElementById('backup-json').addEventListener('click',()=>downloadJSON());
-      document.getElementById('restore-json').addEventListener('click',()=>document.getElementById('restore-file').click());
-      document.getElementById('export-products').addEventListener('click',()=>downloadProducts());
-
-      document.getElementById('restore-file').addEventListener('change',function(ev){
-        const f = ev.target.files[0]; if(!f) return; const reader=new FileReader(); reader.onload = ()=>{try{const obj=JSON.parse(reader.result); if(obj.products) state.products = obj.products; if(obj.users) state.users = obj.users; if(obj.customers) state.customers = obj.customers; saveState(); alert('Restored'); pushNotif('Site data restored');}catch(err){alert('Invalid JSON')} }; reader.readAsText(f);
-      });
-    }
-
-    function handleCSVUpload(ev){
-      const f = ev.target.files[0]; if(!f) return alert('No file'); const reader = new FileReader(); reader.onload = ()=>{
-        const txt = String(reader.result || '').trim(); if(!txt) return alert('Empty file');
-        // simple CSV parse (no quotes handling) — expects header row
-        const lines = txt.split(/
-?
-/).filter(l=>l.trim());
-        const headers = lines.shift().split(',').map(h=>h.trim().toLowerCase());
-        const idx = {sku:headers.indexOf('sku'), name:headers.indexOf('name'), price:headers.indexOf('price'), quantity:headers.indexOf('quantity'), barcode:headers.indexOf('barcode')};
-        if(idx.sku<0 || idx.name<0){ return alert('CSV must include sku and name columns'); }
-        const added = [];
-        lines.forEach(l=>{ const cols = l.split(','); const p = {sku:(cols[idx.sku]||'').trim(), name:(cols[idx.name]||'').trim(), price: Number(cols[idx.price]||0), quantity: Number(cols[idx.quantity]||0), barcode: (cols[idx.barcode]||'').trim()}; if(p.sku && p.name){ // replace if exists
-            const existing = state.products.find(x=>x.sku===p.sku);
-            if(existing) Object.assign(existing,p); else state.products.push(p); added.push(p.sku);
-        }});
-        saveState(); pushNotif('CSV import: '+added.length+' products'); alert('Imported '+added.length+' products'); openProducts();
-      }; reader.readAsText(f);
-    }
-
-    function downloadJSON(){ const blob = new Blob([JSON.stringify({products:state.products,users:state.users,customers:state.customers,sales:state.sales,settings:state.settings},null,2)],{type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='nammo-site-data.json'; a.click(); URL.revokeObjectURL(url); }
-    function downloadProducts(){ const blob = new Blob([JSON.stringify(state.products,null,2)],{type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='products.json'; a.click(); URL.revokeObjectURL(url); }
-
-    function openProducts(){ document.getElementById('right-panel').innerHTML = templates['tpl-products']; const tbody = document.querySelector('#products-table tbody'); function refresh(){ tbody.innerHTML = state.products.map(p=>`<tr><td>${p.sku}</td><td>${p.name}</td><td>${p.price}</td><td>${p.quantity}</td><td>${p.barcode||''}</td><td><button data-sku="${p.sku}" class="btn edit">Edit</button> <button data-sku="${p.sku}" class="btn del">Del</button></td></tr>`).join(''); }
+    // Products screen
+    function openProducts(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-products']; const tbody = document.querySelector('#products-table tbody'); if(!tbody) return; function refresh(){ tbody.innerHTML = state.products.map(p=>`<tr><td>${escapeHtml(p.sku)}</td><td>${escapeHtml(p.name)}</td><td>${p.price}</td><td>${p.quantity}</td><td>${escapeHtml(p.barcode||'')}</td><td><button data-sku="${escapeHtmlAttr(p.sku)}" class="btn edit">Edit</button> <button data-sku="${escapeHtmlAttr(p.sku)}" class="btn del">Del</button></td></tr>`).join(''); }
       refresh(); document.getElementById('add-product-btn').addEventListener('click',()=>{ document.getElementById('product-form').style.display='block'; document.getElementById('product-form-title').textContent='Add Product'; document.getElementById('form-product').dataset.edit=''; document.getElementById('p-sku').value=''; document.getElementById('p-name').value=''; document.getElementById('p-price').value=''; document.getElementById('p-qty').value=''; document.getElementById('p-barcode').value=''; });
       document.getElementById('cancel-product').addEventListener('click',()=>{ document.getElementById('product-form').style.display='none'; });
       document.getElementById('form-product').addEventListener('submit',function(e){ e.preventDefault(); const sku=document.getElementById('p-sku').value.trim(); const name=document.getElementById('p-name').value.trim(); const price=Number(document.getElementById('p-price').value||0); const qty=Number(document.getElementById('p-qty').value||0); const barcode=document.getElementById('p-barcode').value.trim(); const edit = e.target.dataset.edit; if(edit){ const idx = state.products.findIndex(x=>x.sku===edit); if(idx>=0) state.products[idx]={sku,name,price,quantity:qty,barcode}; } else { if(state.products.find(x=>x.sku===sku)) return alert('SKU exists'); state.products.push({sku,name,price,quantity:qty,barcode}); } saveState(); refresh(); document.getElementById('product-form').style.display='none'; pushNotif('Product saved: '+sku); });
       tbody.addEventListener('click',function(ev){ if(ev.target.classList.contains('del')){ const sku = ev.target.dataset.sku; if(confirm('Delete '+sku+'?')){ state.products = state.products.filter(p=>p.sku!==sku); saveState(); refresh(); pushNotif('Product removed: '+sku); }} if(ev.target.classList.contains('edit')){ const sku = ev.target.dataset.sku; const p = state.products.find(x=>x.sku===sku); if(p){ document.getElementById('p-sku').value=p.sku; document.getElementById('p-name').value=p.name; document.getElementById('p-price').value=p.price; document.getElementById('p-qty').value=p.quantity; document.getElementById('p-barcode').value=p.barcode; document.getElementById('form-product').dataset.edit=sku; document.getElementById('product-form').style.display='block'; document.getElementById('product-form-title').textContent='Edit Product'; } } }); }
 
-    function openUsers(){ document.getElementById('right-panel').innerHTML = templates['tpl-users']; const tbody = document.querySelector('#users-table tbody'); function refresh(){ tbody.innerHTML = state.users.map(u=>`<tr><td>${u.email}</td><td>${u.first||u.name||''} ${u.last||''}</td><td>${u.role||''}</td><td>${u.expiry||''}</td><td><button data-email="${u.email}" class="btn del-user">Del</button></td></tr>`).join(''); } refresh(); document.getElementById('create-user-btn').addEventListener('click',()=>{ document.getElementById('user-form').style.display='block'; }); document.getElementById('cancel-user').addEventListener('click',()=>{ document.getElementById('user-form').style.display='none'; }); document.getElementById('form-user').addEventListener('submit',function(e){ e.preventDefault(); const u={email:document.getElementById('u-email').value.trim(),first:document.getElementById('u-first').value.trim(),last:document.getElementById('u-last').value.trim(),pass:document.getElementById('u-pass').value,role:document.getElementById('u-role').value,expiry:document.getElementById('u-expiry').value}; if(state.users.find(x=>x.email===u.email)) return alert('User exists'); state.users.push(u); saveState(); refresh(); document.getElementById('user-form').style.display='none'; pushNotif('User created: '+u.email); }); tbody.addEventListener('click',function(e){ if(e.target.classList.contains('del-user')){ if(confirm('Delete user '+e.target.dataset.email+'?')){ state.users = state.users.filter(x=>x.email!==e.target.dataset.email); saveState(); refresh(); pushNotif('User removed: '+e.target.dataset.email); } } }); }
+    // Users
+    function openUsers(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-users']; const tbody = document.querySelector('#users-table tbody'); function refresh(){ tbody.innerHTML = state.users.map(u=>`<tr><td>${escapeHtml(u.email)}</td><td>${escapeHtml(u.first||u.name||'')}</td><td>${escapeHtml(u.role||'')}</td><td>${escapeHtml(u.expiry||'')}</td><td><button data-email="${escapeHtmlAttr(u.email)}" class="btn del-user">Del</button></td></tr>`).join(''); } refresh(); document.getElementById('create-user-btn').addEventListener('click',()=>{ document.getElementById('user-form').style.display='block'; }); document.getElementById('cancel-user').addEventListener('click',()=>{ document.getElementById('user-form').style.display='none'; }); document.getElementById('form-user').addEventListener('submit',function(e){ e.preventDefault(); const u={email:document.getElementById('u-email').value.trim(),first:document.getElementById('u-first').value.trim(),last:document.getElementById('u-last').value.trim(),pass:document.getElementById('u-pass').value,role:document.getElementById('u-role').value,expiry:document.getElementById('u-expiry').value}; if(state.users.find(x=>x.email===u.email)) return alert('User exists'); state.users.push(u); saveState(); refresh(); document.getElementById('user-form').style.display='none'; pushNotif('User created: '+u.email); }); tbody.addEventListener('click',function(e){ if(e.target.classList.contains('del-user')){ if(confirm('Delete user '+e.target.dataset.email+'?')){ state.users = state.users.filter(x=>x.email!==e.target.dataset.email); saveState(); refresh(); pushNotif('User removed: '+e.target.dataset.email); } } }); }
 
-    function openCustomers(){ document.getElementById('right-panel').innerHTML = templates['tpl-customers']; const tbody = document.querySelector('#customers-table tbody'); function refresh(){ tbody.innerHTML = state.customers.map((c,i)=>`<tr><td>${c.name}</td><td>${c.phone||''}</td><td>${c.email||''}</td><td>${c.location||''}</td><td>${isActive(c)?'Yes':'No'}</td><td><button data-idx="${i}" class="btn edit-c">Edit</button> <button data-idx="${i}" class="btn del-c">Del</button></td></tr>`).join(''); }
-      function isActive(c){ const days = state.settings.customerFields.activeDays||30; const created = new Date(c.created||c._created||new Date()); const diff = (Date.now()-created.getTime())/(1000*60*60*24); return diff<=days; }
-      refresh(); document.getElementById('add-customer-btn').addEventListener('click',()=>{ document.getElementById('customer-form').style.display='block'; document.getElementById('form-customer').dataset.edit=''; document.getElementById('c-name').value=''; document.getElementById('c-phone').value=''; document.getElementById('c-email').value=''; document.getElementById('c-location').value=''; }); document.getElementById('cancel-customer').addEventListener('click',()=>{ document.getElementById('customer-form').style.display='none'; }); document.getElementById('customers-table').addEventListener('click',function(e){ if(e.target.classList.contains('del-c')){ const idx=Number(e.target.dataset.idx); if(confirm('Delete customer?')){ state.customers.splice(idx,1); saveState(); refresh(); pushNotif('Customer removed'); } } if(e.target.classList.contains('edit-c')){ const idx=Number(e.target.dataset.idx); const c=state.customers[idx]; if(c){ document.getElementById('customer-form').style.display='block'; document.getElementById('form-customer').dataset.edit=idx; document.getElementById('c-name').value=c.name; document.getElementById('c-phone').value=c.phone; document.getElementById('c-email').value=c.email; document.getElementById('c-location').value=c.location; } } }); }
+    // Customers
+    function openCustomers(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-customers']; const tbody = document.querySelector('#customers-table tbody'); function isActive(c){ const days = state.settings.customerFields.activeDays||30; const created = new Date(c.created||new Date()); const diff = (Date.now()-created.getTime())/(1000*60*60*24); return diff<=days; }
+      function refresh(){ tbody.innerHTML = state.customers.map((c,i)=>`<tr><td>${escapeHtml(c.name)}</td><td>${escapeHtml(c.phone||'')}</td><td>${escapeHtml(c.email||'')}</td><td>${escapeHtml(c.location||'')}</td><td>${isActive(c)?'Yes':'No'}</td><td><button data-idx="${i}" class="btn edit-c">Edit</button> <button data-idx="${i}" class="btn del-c">Del</button></td></tr>`).join(''); }
+      refresh(); document.getElementById('add-customer-btn').addEventListener('click',()=>{ document.getElementById('customer-form').style.display='block'; document.getElementById('form-customer').dataset.edit=''; document.getElementById('c-name').value=''; document.getElementById('c-phone').value=''; document.getElementById('c-email').value=''; document.getElementById('c-location').value=''; }); document.getElementById('cancel-customer').addEventListener('click',()=>{ document.getElementById('customer-form').style.display='none'; }); document.getElementById('form-customer').addEventListener('submit',function(e){ e.preventDefault(); const name=document.getElementById('c-name').value.trim(); const phone=document.getElementById('c-phone').value.trim(); const email=document.getElementById('c-email').value.trim(); const loc=document.getElementById('c-location').value.trim(); const edit = document.getElementById('form-customer').dataset.edit; if(edit){ const idx=Number(edit); if(state.customers[idx]){ state.customers[idx]=Object.assign(state.customers[idx],{name,phone,email,location:loc}); } } else { state.customers.push({name,phone,email,location:loc,created:new Date().toISOString()}); } saveState(); alert('Customer saved'); pushNotif('Customer saved: '+name); openCustomers(); });
+      document.getElementById('customers-table').addEventListener('click',function(e){ if(e.target.classList.contains('del-c')){ const idx=Number(e.target.dataset.idx); if(confirm('Delete customer?')){ state.customers.splice(idx,1); saveState(); refresh(); pushNotif('Customer removed'); } } if(e.target.classList.contains('edit-c')){ const idx=Number(e.target.dataset.idx); const c=state.customers[idx]; if(c){ document.getElementById('customer-form').style.display='block'; document.getElementById('form-customer').dataset.edit=idx; document.getElementById('c-name').value=c.name; document.getElementById('c-phone').value=c.phone; document.getElementById('c-email').value=c.email; document.getElementById('c-location').value=c.location; } } }); }
 
-    function openBilling(){ document.getElementById('right-panel').innerHTML = templates['tpl-billing']; const cart=[]; const tbody = document.querySelector('#cart-table tbody'); function renderCart(){ tbody.innerHTML = cart.map((c,i)=>`<tr><td>${c.sku}</td><td>${c.name}</td><td>${c.price}</td><td><input data-idx="${i}" class="qty" type="number" value="${c.qty}" style="width:60px"/></td><td>${(c.price*c.qty).toFixed(2)}</td><td><button data-idx="${i}" class="btn remove">X</button></td></tr>`).join(''); recalc(); }
+    // Billing
+    function openBilling(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-billing']; const cart=[]; const tbody = document.querySelector('#cart-table tbody'); function renderCart(){ tbody.innerHTML = cart.map((c,i)=>`<tr><td>${escapeHtml(c.sku)}</td><td>${escapeHtml(c.name)}</td><td>${c.price}</td><td><input data-idx="${i}" class="qty" type="number" value="${c.qty}" style="width:60px"/></td><td>${(c.price*c.qty).toFixed(2)}</td><td><button data-idx="${i}" class="btn remove">X</button></td></tr>`).join(''); recalc(); }
       function recalc(){ const subtotal = cart.reduce((s,c)=>s+c.price*c.qty,0); const gstPct = Number(document.getElementById('bill-gst').value||0); const gstAmt = subtotal*gstPct/100; const disc = Number(document.getElementById('bill-discount').value||0); const total = subtotal + gstAmt - disc; document.getElementById('sub-total').textContent=subtotal.toFixed(2); document.getElementById('gst-amt').textContent=gstAmt.toFixed(2); document.getElementById('disc-amt').textContent=disc.toFixed(2); document.getElementById('total-amt').textContent=total.toFixed(2); }
-      document.getElementById('search-product').addEventListener('keypress',function(e){ if(e.key==='Enter'){ const q=this.value.trim(); const p = state.products.find(x=>x.sku===q || x.name.toLowerCase()===q.toLowerCase() || x.barcode===q); if(p){ const found = cart.find(c=>c.sku===p.sku); if(found) found.qty++; else cart.push({sku:p.sku,name:p.name,price:p.price,qty:1}); renderCart(); } else alert('Product not found'); } });
-      document.getElementById('cart-table').addEventListener('click',function(e){ if(e.target.classList.contains('remove')){ cart.splice(Number(e.target.dataset.idx),1); renderCart(); } });
-      document.getElementById('cart-table').addEventListener('change',function(e){ if(e.target.classList.contains('qty')){ const idx=Number(e.target.dataset.idx); cart[idx].qty=Number(e.target.value||1); renderCart(); } });
-      document.getElementById('apply-discount').addEventListener('click',function(){ recalc(); pushNotif('Discount applied: ₹'+document.getElementById('bill-discount').value); });
-      document.getElementById('finalise-bill').addEventListener('click',function(){ if(cart.length===0) return alert('Cart empty'); const sale={items:cart.slice(),customer:document.getElementById('bill-customer').value,gst:Number(document.getElementById('bill-gst').value||0),discount:Number(document.getElementById('bill-discount').value||0),total:Number(document.getElementById('total-amt').textContent||0),when:new Date().toISOString()}; state.sales.push(sale); saveState(); cart.length=0; renderCart(); pushNotif('Sale completed'); alert('Sale saved'); });
-      document.getElementById('clear-cart').addEventListener('click',()=>{ if(confirm('Clear cart?')){ cart.length=0; renderCart(); pushNotif('Cart cleared'); }});
-      document.getElementById('print-bill').addEventListener('click',()=>window.print()); renderCart(); }
+      const search = document.getElementById('search-product'); if(search) search.addEventListener('keypress',function(e){ if(e.key==='Enter'){ const q=this.value.trim(); const p = state.products.find(x=>x.sku===q || (x.name||'').toLowerCase()===q.toLowerCase() || x.barcode===q); if(p){ const found = cart.find(c=>c.sku===p.sku); if(found) found.qty++; else cart.push({sku:p.sku,name:p.name,price:p.price,qty:1}); renderCart(); } else alert('Product not found'); } });
+      const cartTable = document.getElementById('cart-table'); if(cartTable){ cartTable.addEventListener('click',function(e){ if(e.target.classList.contains('remove')){ cart.splice(Number(e.target.dataset.idx),1); renderCart(); } }); cartTable.addEventListener('change',function(e){ if(e.target.classList.contains('qty')){ const idx=Number(e.target.dataset.idx); cart[idx].qty=Number(e.target.value||1); renderCart(); } }); }
+      const applyBtn = document.getElementById('apply-discount'); if(applyBtn) applyBtn.addEventListener('click',()=>{ recalc(); pushNotif('Discount applied: ₹'+document.getElementById('bill-discount').value); });
+      const finalise = document.getElementById('finalise-bill'); if(finalise) finalise.addEventListener('click',()=>{ if(cart.length===0) return alert('Cart empty'); const sale={items:cart.slice(),customer:document.getElementById('bill-customer').value,gst:Number(document.getElementById('bill-gst').value||0),discount:Number(document.getElementById('bill-discount').value||0),total:Number(document.getElementById('total-amt').textContent||0),when:new Date().toISOString(),createdBy:state.user.email||'guest'}; state.sales.push(sale); saveState(); cart.length=0; renderCart(); pushNotif('Sale completed'); alert('Sale saved'); });
+      const clearBtn = document.getElementById('clear-cart'); if(clearBtn) clearBtn.addEventListener('click',()=>{ if(confirm('Clear cart?')){ cart.length=0; renderCart(); pushNotif('Cart cleared'); }});
+      const printBtn = document.getElementById('print-bill'); if(printBtn) printBtn.addEventListener('click',()=>window.print()); renderCart(); }
 
-    function openReports(){ document.getElementById('right-panel').innerHTML = templates['tpl-reports']; const area=document.getElementById('reports-area'); const show=(from,to)=>{ const list=state.sales.filter(s=>{const d=new Date(s.when); return d>=from && d<=to;}); area.innerHTML=`<div>${list.length} sales</div><pre>${JSON.stringify(list,null,2)}</pre>`; };
-      const today=new Date(); today.setHours(0,0,0,0); const tomorrow=new Date(today); tomorrow.setDate(today.getDate()+1);
+    // Reports
+    function openReports(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-reports']; const area = document.getElementById('reports-area'); function show(from,to){ const list = state.sales.filter(s=>{ const d=new Date(s.when); return d>=from && d<=to; }); area.innerHTML = `<div>${list.length} sales</div><pre>${JSON.stringify(list,null,2)}</pre>`; }
+      const today = new Date(); today.setHours(0,0,0,0); const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
       document.getElementById('rep-today').addEventListener('click',()=>{ show(today,new Date(tomorrow-1)); toggleTab('rep-today'); });
       document.getElementById('rep-yesterday').addEventListener('click',()=>{ const yd=new Date(today); yd.setDate(today.getDate()-1); const ye=new Date(today); ye.setMilliseconds(-1); show(yd,ye); toggleTab('rep-yesterday'); });
       document.getElementById('rep-custom').addEventListener('click',()=>{ document.getElementById('custom-range').classList.toggle('hidden'); toggleTab('rep-custom'); });
@@ -473,19 +455,45 @@
       function toggleTab(id){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.getElementById(id).classList.add('active'); }
     }
 
-    function openSettings(){ document.getElementById('right-panel').innerHTML = templates['tpl-settings']; document.getElementById('admin-email').value = state.settings.adminEmail || ''; document.getElementById('admin-pass').value = state.settings.adminPass || ''; document.getElementById('c-phone').checked = state.settings.customerFields.phone; document.getElementById('c-email').checked = state.settings.customerFields.email; document.getElementById('c-location').checked = state.settings.customerFields.location; document.getElementById('c-active-days').value = state.settings.customerFields.activeDays; document.getElementById('b-location').value = state.settings.business.location||''; document.getElementById('b-city').value = state.settings.business.city||''; document.getElementById('b-state').value = state.settings.business.state||''; document.getElementById('b-pincode').value = state.settings.business.pincode||'';
+    // Settings & notifications
+    function openSettings(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-settings']; // populate
+      document.getElementById('admin-email').value = state.settings.adminEmail || '';
+      document.getElementById('admin-pass').value = state.settings.adminPass || '';
+      document.getElementById('c-phone').checked = state.settings.customerFields.phone;
+      document.getElementById('c-email').checked = state.settings.customerFields.email;
+      document.getElementById('c-location').checked = state.settings.customerFields.location;
+      document.getElementById('c-active-days').value = state.settings.customerFields.activeDays;
+      document.getElementById('b-location').value = state.settings.business.location||'';
+      document.getElementById('b-city').value = state.settings.business.city||'';
+      document.getElementById('b-state').value = state.settings.business.state||'';
+      document.getElementById('b-pincode').value = state.settings.business.pincode||'';
+
       document.querySelectorAll('[data-tab]').forEach(tab=>tab.addEventListener('click',function(){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); const tname=this.dataset.tab; document.getElementById('settings-login').classList.toggle('hidden', tname!=='login'); document.getElementById('settings-customers').classList.toggle('hidden', tname!=='customers'); document.getElementById('settings-business').classList.toggle('hidden', tname!=='business'); }));
+
       document.getElementById('save-login').addEventListener('click',()=>{ state.settings.adminEmail=document.getElementById('admin-email').value.trim(); state.settings.adminPass=document.getElementById('admin-pass').value; saveState(); pushNotif('Admin login saved'); alert('Saved'); });
       document.getElementById('reset-login').addEventListener('click',()=>{ document.getElementById('admin-email').value='admin@nammo'; document.getElementById('admin-pass').value='admin123'; state.settings.adminEmail='admin@nammo'; state.settings.adminPass='admin123'; saveState(); pushNotif('Admin reset to default'); alert('Reset to default'); });
       document.getElementById('forget-login').addEventListener('click',()=>{ if(confirm('Forget stored admin credentials?')){ state.settings.adminEmail=''; state.settings.adminPass=''; document.getElementById('admin-email').value=''; document.getElementById('admin-pass').value=''; saveState(); pushNotif('Admin credentials forgotten'); alert('Cleared'); }});
+
       document.getElementById('save-customer-settings').addEventListener('click',()=>{ state.settings.customerFields.phone = document.getElementById('c-phone').checked; state.settings.customerFields.email = document.getElementById('c-email').checked; state.settings.customerFields.location = document.getElementById('c-location').checked; state.settings.customerFields.activeDays = Number(document.getElementById('c-active-days').value||30); saveState(); pushNotif('Customer settings saved'); alert('Saved'); });
-      document.getElementById('save-business').addEventListener('click',()=>{ state.settings.business.location = document.getElementById('b-location').value; state.settings.business.city = document.getElementById('b-city').value; state.settings.business.state = document.getElementById('b-state').value; state.settings.business.pincode = document.getElementById('b-pincode').value; saveState(); pushNotif('Business location saved'); alert('Saved'); });
+
+      document.getElementById('save-business').addEventListener('click',()=>{ state.settings.business.location = document.getElementById('b-location').value.trim(); state.settings.business.city = document.getElementById('b-city').value.trim(); state.settings.business.state = document.getElementById('b-state').value.trim(); state.settings.business.pincode = document.getElementById('b-pincode').value.trim(); saveState(); pushNotif('Business saved'); alert('Saved'); });
     }
 
-    function openNotifications(){ document.getElementById('right-panel').innerHTML = templates['tpl-notifications']; const list = document.getElementById('notifications-list'); function render(){ list.innerHTML = state.notifications.map(n=>`<div style="padding:8px;border-bottom:1px solid #eef">${new Date(n.when).toLocaleString()} - ${n.text}</div>`).join('') || '<div class="muted">No notifications</div>'; } render(); document.getElementById('clear-notifications').addEventListener('click',()=>{ if(confirm('Clear notifications?')){ state.notifications=[]; saveState(); render(); updateNotifCount(); }}); }
+    function openNotifications(){ renderShell(); const content = document.getElementById('content'); content.innerHTML = templates['tpl-notifications']; const list = document.getElementById('notifications-list'); if(!list) return; if(state.notifications.length===0) list.innerHTML = '<div class="muted">No notifications</div>'; else list.innerHTML = state.notifications.map(n=>{ const t = new Date(n.when); return `<div style="margin-bottom:8px"><div><small class="muted">${t.toLocaleString()}</small></div><div>${escapeHtml(n.text)}</div></div>` }).join(''); document.getElementById('clear-notifications').addEventListener('click',()=>{ if(confirm('Clear all notifications?')){ state.notifications = []; saveState(); updateNotifCount(); openNotifications(); } }); }
 
-    // expose for debug
-    window.openBilling = openBilling; window.openProducts = openProducts; window.openUsers = openUsers; window.openReports = openReports; window.openSettings = openSettings; window.openNotifications = openNotifications; window.openCustomers = openCustomers;
+    // Utilities
+    function escapeHtml(str){ if(str==null) return ''; return String(str).replace(/[&<>"]+/g,function(s){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]||s; }); }
+    function escapeHtmlAttr(str){ return escapeHtml(str).replace(/'/g,"&#39;"); }
+
+    function logout(){ state.user = {name:'Guest',email:'',role:'guest'}; saveState(); pushNotif('Logged out'); renderLogin(); }
+
+    // initial view - if already logged in show dashboard
+    if(state.user && state.user.role && state.user.role!=='guest'){
+      renderDashboard();
+    } else {
+      renderLogin();
+    }
+
   })();
   </script>
 </body>
